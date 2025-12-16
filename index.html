@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hunkaar</title>
+  <style>
+    :root {
+      --bg: #050505;
+      --fg: #e0e0e0;
+      --fg-strong: #ffffff;
+      --muted: #666;
+      --accent: #a0b4ff;
+      --glow: rgba(160, 180, 255, 0.1);
+      --transition: 400ms cubic-bezier(0.2, 0, 0.2, 1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 300;
+      overflow: hidden;
+    }
+
+    .container {
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* --- MANIFESTE (L'Intention du Nous) --- */
+    .manifeste {
+      position: absolute;
+      top: 20%;
+      text-align: center;
+      font-size: clamp(1.1rem, 3vw, 1.5rem);
+      color: var(--fg-strong);
+      opacity: 0;
+      animation: fadeIn 1.5s ease-out 0.5s forwards;
+      z-index: 10;
+      max-width: 600px;
+      letter-spacing: 0.02em;
+      line-height: 1.4;
+    }
+
+    /* --- LA STRUCTURE (SVG) --- */
+    .tension-container {
+      width: min(90vw, 800px);
+      height: 40vh;
+      position: relative;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tension-svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    /* Les Pôles */
+    .pole {
+      fill: var(--bg);
+      stroke: var(--fg);
+      stroke-width: 1.5;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .pole:hover {
+      fill: var(--fg);
+      stroke: var(--fg-strong);
+      filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+    }
+
+    /* La Corde (Didi) */
+    .corde {
+      stroke: var(--accent);
+      stroke-width: 1.5;
+      fill: none;
+      opacity: 0.5;
+      animation: tensionPulse 5s infinite ease-in-out;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .corde-zone {
+      stroke: transparent;
+      stroke-width: 60;
+      fill: none;
+      cursor: pointer;
+    }
+
+    /* Interaction Corde */
+    .group-didi:hover .corde,
+    .group-didi.active .corde {
+      stroke-width: 2.5;
+      opacity: 1;
+      filter: drop-shadow(0 0 12px var(--accent));
+    }
+
+    /* Labels */
+    .label {
+      fill: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.25em;
+      text-anchor: middle;
+      opacity: 0;
+      animation: fadeIn 1s ease-out 1.5s forwards;
+      cursor: pointer;
+    }
+
+    .label-didi {
+      fill: var(--accent);
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      text-anchor: middle;
+      letter-spacing: 0.15em;
+    }
+
+    .group-didi:hover+.label-didi,
+    .group-didi:hover .label-didi,
+    .group-didi.active+.label-didi,
+    .group-didi.active .label-didi {
+      opacity: 1;
+    }
+
+    /* --- ESSENCE (Base) --- */
+    .essence {
+      position: absolute;
+      bottom: 20%;
+      text-align: center;
+      opacity: 0;
+      animation: fadeIn 1.5s ease-out 1.2s forwards;
+      pointer-events: none;
+    }
+
+    .essence-beat {
+      font-size: clamp(1.2rem, 4vw, 2rem);
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      font-weight: 300;
+    }
+
+    .beat-word {
+      display: inline-block;
+      color: var(--fg-strong);
+      font-weight: 400;
+      animation: heartbeat 4s infinite ease-in-out;
+    }
+
+    /* --- ANIMATIONS --- */
+    @keyframes fadeIn {
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes tensionPulse {
+
+      0%,
+      100% {
+        stroke-opacity: 0.4;
+        stroke-width: 1.5;
+      }
+
+      50% {
+        stroke-opacity: 0.7;
+        stroke-width: 1.8;
+      }
+    }
+
+    @keyframes heartbeat {
+      0% {
+        transform: scale(1);
+        opacity: 0.8;
+        text-shadow: 0 0 0 transparent;
+      }
+
+      10% {
+        transform: scale(1.05);
+        opacity: 1;
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+      }
+
+      20% {
+        transform: scale(1);
+        opacity: 0.8;
+        text-shadow: 0 0 0 transparent;
+      }
+
+      30% {
+        transform: scale(1.02);
+        opacity: 0.9;
+        text-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
+      }
+
+      40% {
+        transform: scale(1);
+        opacity: 0.8;
+        text-shadow: 0 0 0 transparent;
+      }
+
+      100% {
+        transform: scale(1);
+        opacity: 0.8;
+        text-shadow: 0 0 0 transparent;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+
+    <!-- LE MANIFESTE (L'Intention du Nous) -->
+    <div class="manifeste">
+      <p>Ici, on ne défend rien.<br>Ensemble, on découvre.</p>
+    </div>
+
+    <!-- LA TENSION (L'Architecture) -->
+    <div class="tension-container">
+      <svg class="tension-svg" viewBox="0 0 600 200" preserveAspectRatio="xMidYMid meet">
+
+        <!-- LIGNE / DIDI -->
+        <g class="group-didi">
+          <a href="https://le-dioptre.fr" target="_blank" aria-label="Le Dioptre">
+            <!-- Zone de clic élargie pour Didi -->
+            <path d="M 50 100 Q 300 100 550 100" class="corde-zone" stroke-width="60" />
+            <path d="M 50 100 Q 300 100 550 100" class="corde" id="mainString" />
+            <text x="300" y="140" class="label label-didi">Le Dioptre</text>
+          </a>
+        </g>
+
+        <!-- PÔLE GAUCHE / JE -->
+        <a href="https://jean-emmanuel-combe.fr" target="_blank" aria-label="Jean-Emmanuel">
+          <!-- Zone de clic élargie -->
+          <circle cx="50" cy="100" r="30" fill="transparent" />
+          <circle cx="50" cy="100" r="6" class="pole" />
+          <text x="50" y="70" class="label">Jean-Emmanuel</text>
+        </a>
+
+        <!-- PÔLE DROITE / AURORE -->
+        <a href="https://aurore-combe.fr" target="_blank" aria-label="Aurore">
+          <!-- Zone de clic élargie -->
+          <circle cx="550" cy="100" r="30" fill="transparent" />
+          <circle cx="550" cy="100" r="6" class="pole" />
+          <text x="550" y="70" class="label">Aurore</text>
+        </a>
+
+      </svg>
+    </div>
+
+    <!-- ESSENCE -->
+    <div class="essence">
+      <p class="essence-beat">The Pact <span class="beat-word">Beats</span>.</p>
+    </div>
+
+  </div>
+
+  <script>
+    // Physique de la corde (Système Masse-Ressort-Amortisseur)
+    const svg = document.querySelector('.tension-svg');
+    const string = document.getElementById('mainString');
+    const didiGroup = document.querySelector('.group-didi');
+
+    // Configuration physique
+    const config = {
+      tension: 0.03, // Plus souple
+      friction: 0.92, // Plus de glissement
+      maxOffset: 150 // Amplitude verticale
+    };
+
+    // État du système
+    let state = {
+      targetY: 0, // Position cible (déplacement vertical)
+      currentY: 0, // Position actuelle de la corde
+      velocity: 0, // Vitesse actuelle
+      isHovering: false,
+      animating: false
+    };
+
+    // Boucle d'animation physique
+    function animate() {
+      // Force du ressort : F = -k * y
+      const force = (state.targetY - state.currentY) * config.tension;
+
+      // Accélération et Vitesse
+      state.velocity += force;
+      state.velocity *= config.friction; // Application de la friction
+
+      // Mise à jour de la position
+      state.currentY += state.velocity;
+
+      // Mise à jour du DOM
+      // On utilise une courbe quadratique pour la déformation verticale
+      // M 50 100 (Départ) Q 300 (Centre X) 100+Y (Centre Y) 550 100 (Fin)
+      string.setAttribute('d', `M 50 100 Q 300 ${100 + state.currentY} 550 100`);
+
+      // Optimisation : on arrête la boucle si le mouvement est négligeable ET qu'on ne survole pas
+      if (!state.isHovering && Math.abs(state.currentY) < 0.1 && Math.abs(state.velocity) < 0.1) {
+        state.currentY = 0;
+        state.velocity = 0;
+        string.setAttribute('d', `M 50 100 Q 300 100 550 100`);
+        state.animating = false;
+        didiGroup.classList.remove('active');
+      } else {
+        requestAnimationFrame(animate);
+      }
+    }
+
+    function startAnimation() {
+      if (!state.animating) {
+        state.animating = true;
+        animate();
+      }
+    }
+
+    // Gestionnaires d'événements
+    function handleStart() {
+      state.isHovering = true;
+      didiGroup.classList.add('active');
+      startAnimation();
+    }
+
+    function handleEnd() {
+      state.isHovering = false;
+      state.targetY = 0; // Relâche la corde
+    }
+
+    function handleMove(clientX, clientY) {
+      if (!state.isHovering) return;
+
+      const rect = svg.getBoundingClientRect();
+      const mouseX = clientX - rect.left;
+      const mouseY = clientY - rect.top;
+
+      // Conversion pixels -> unités SVG
+      // SVG viewBox: 600 x 200
+      const scaleX = 600 / rect.width;
+      const scaleY = 200 / rect.height;
+
+      const centerX = 300;
+      const centerY = 100;
+
+      const svgMouseX = mouseX * scaleX;
+      const svgMouseY = mouseY * scaleY;
+
+      // Calcul de la distance horizontale par rapport au centre
+      // Plus on est près du centre (300), plus l'influence est forte
+      const distX = Math.abs(svgMouseX - centerX);
+      const maxDistX = 300; // Demi-largeur
+
+      if (distX > maxDistX) {
+        state.targetY = 0;
+        return;
+      }
+
+      // Calcul du déplacement vertical demandé
+      let deltaY = (svgMouseY - centerY);
+
+      // Influence sinusoïdale basée sur la position X
+      // Max au centre, 0 aux extrémités
+      const influence = Math.cos((distX / maxDistX) * (Math.PI / 2));
+
+      state.targetY = Math.max(-config.maxOffset, Math.min(config.maxOffset, deltaY)) * influence;
+    }
+
+    // Souris
+    svg.addEventListener('mouseenter', handleStart);
+    svg.addEventListener('mouseleave', handleEnd);
+    svg.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
+
+    // Touch (Mobile)
+    svg.addEventListener('touchstart', (e) => {
+      handleStart();
+      const touch = e.touches[0];
+      handleMove(touch.clientX, touch.clientY);
+    }, { passive: true });
+
+    svg.addEventListener('touchend', handleEnd);
+    svg.addEventListener('touchcancel', handleEnd);
+
+    svg.addEventListener('touchmove', (e) => {
+      if (e.cancelable) e.preventDefault();
+      const touch = e.touches[0];
+      handleMove(touch.clientX, touch.clientY);
+    }, { passive: false });
+
+    // Impulsion initiale
+    setTimeout(() => {
+      state.velocity = 15; // Impulsion verticale
+      startAnimation();
+    }, 1000);
+  </script>
+</body>
+
+</html>
