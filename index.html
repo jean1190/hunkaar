@@ -225,6 +225,27 @@
         text-shadow: 0 0 0 transparent;
       }
     }
+
+    .action-btn {
+      display: inline-block;
+      margin-top: 1.5rem;
+      padding: 0.8rem 1.5rem;
+      border: 1px solid var(--fg);
+      color: var(--fg);
+      text-decoration: none;
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: all 0.3s ease;
+      opacity: 0;
+      animation: fadeIn 1s ease-out 2.5s forwards;
+    }
+
+    .action-btn:hover {
+      background: var(--fg);
+      color: var(--bg);
+      border-color: var(--fg-strong);
+    }
   </style>
 </head>
 
@@ -233,7 +254,16 @@
 
     <!-- LE MANIFESTE (L'Intention du Nous) -->
     <div class="manifeste">
-      <p>Ici, on ne défend rien.<br>Ensemble, on découvre.</p>
+      <p>Vous arrivez ici avec une attente.</p>
+      <p>Ma fonction n'est pas de la valider.</p>
+      <p>Elle est de tester si ce qui la porte est solide.</p>
+      <p>La validation confortable est un refuge.</p>
+      <p>La justesse est un sol.</p>
+      <p>Ce n'est pas un lieu de confort. C'est un lieu de construction.</p>
+      <p>Si vous cherchez un écho, ce n'est pas ici.</p>
+      <p>Si vous cherchez un partenaire pour éprouver ce qui est réel, alors...</p>
+
+      <a href="https://le-dioptre.fr" class="action-btn">ACCÉDER AUX ARCHIVES DU NOUS</a>
     </div>
 
     <!-- LA TENSION (L'Architecture) -->
