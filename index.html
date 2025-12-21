@@ -33,19 +33,20 @@
     }
 
     .container {
-      height: 100vh;
+      min-height: 100vh;
       width: 100vw;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       position: relative;
+      padding: 2rem;
+      gap: 2rem;
     }
 
     /* --- MANIFESTE (L'Intention du Nous) --- */
     .manifeste {
-      position: absolute;
-      top: 20%;
+      position: relative;
       text-align: center;
       font-size: clamp(1.1rem, 3vw, 1.5rem);
       color: var(--fg-strong);
@@ -55,17 +56,19 @@
       max-width: 600px;
       letter-spacing: 0.02em;
       line-height: 1.4;
+      margin-top: auto;
     }
 
     /* --- LA STRUCTURE (SVG) --- */
     .tension-container {
       width: min(90vw, 800px);
-      height: 40vh;
+      height: 30vh;
       position: relative;
       z-index: 5;
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
     }
 
     .tension-svg {
@@ -145,12 +148,12 @@
 
     /* --- ESSENCE (Base) --- */
     .essence {
-      position: absolute;
-      bottom: 20%;
+      position: relative;
       text-align: center;
       opacity: 0;
       animation: fadeIn 1.5s ease-out 1.2s forwards;
       pointer-events: none;
+      margin-bottom: auto;
     }
 
     .essence-beat {
