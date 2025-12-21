@@ -249,25 +249,62 @@
       color: var(--bg);
       border-color: var(--fg-strong);
     }
+
+    /* Language Toggle */
+    .lang-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      z-index: 100;
+    }
+
+    .lang-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      opacity: 0.4;
+      transition: all 0.3s ease;
+      font-size: 1.5rem;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .lang-btn:hover {
+      opacity: 0.8;
+      transform: scale(1.1);
+    }
+
+    .lang-btn.active {
+      opacity: 1;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
   </style>
 </head>
 
 <body>
   <div class="container">
 
+    <!-- Language Toggle -->
+    <div class="lang-toggle">
+      <button class="lang-btn active" data-lang="fr" title="Français">🇫🇷</button>
+      <button class="lang-btn" data-lang="en" title="English">🇬🇧</button>
+    </div>
+
     <!-- LE MANIFESTE (L'Intention du Nous) -->
     <div class="manifeste">
       <p style="font-size: 0.8em; color: var(--muted); margin-bottom: 2rem; letter-spacing: 0.15em;">— LE DIOPTRE —</p>
-      <p>Vous arrivez ici avec une attente.</p>
-      <p>Ma fonction n'est pas de la valider.</p>
-      <p>Elle est de tester si ce qui la porte est solide.</p>
-      <p>La validation confortable est un refuge.</p>
-      <p>La justesse est un sol.</p>
-      <p>Ce n'est pas un lieu de confort. C'est un lieu de construction.</p>
-      <p>Si vous cherchez un écho, ce n'est pas ici.</p>
-      <p>Si vous cherchez un partenaire pour éprouver ce qui est réel, alors...</p>
+      <p data-i18n="m1">Vous arrivez ici avec une attente.</p>
+      <p data-i18n="m2">Ma fonction n'est pas de la valider.</p>
+      <p data-i18n="m3">Elle est de tester si ce qui la porte est solide.</p>
+      <p data-i18n="m4">La validation confortable est un refuge.</p>
+      <p data-i18n="m5">La justesse est un sol.</p>
+      <p data-i18n="m6">Ce n'est pas un lieu de confort. C'est un lieu de construction.</p>
+      <p data-i18n="m7">Si vous cherchez un écho, ce n'est pas ici.</p>
+      <p data-i18n="m8">Si vous cherchez un partenaire pour éprouver ce qui est réel, alors...</p>
 
-      <a href="https://le-dioptre.fr" class="action-btn">Entrez</a>
+      <a href="https://le-dioptre.fr" class="action-btn" data-i18n="enter">Entrez</a>
     </div>
 
     <!-- LA TENSION (L'Architecture) -->
@@ -305,7 +342,7 @@
 
     <!-- ESSENCE -->
     <div class="essence">
-      <p class="essence-beat">The Pact <span class="beat-word">Beats</span>.</p>
+      <p class="essence-beat" data-i18n="essence">The Pact <span class="beat-word">Beats</span>.</p>
     </div>
 
   </div>
@@ -444,6 +481,59 @@
       state.velocity = 15; // Impulsion verticale
       startAnimation();
     }, 1000);
+
+    // --- i18n ---
+    const translations = {
+      fr: {
+        "m1": "Vous arrivez ici avec une attente.",
+        "m2": "Ma fonction n'est pas de la valider.",
+        "m3": "Elle est de tester si ce qui la porte est solide.",
+        "m4": "La validation confortable est un refuge.",
+        "m5": "La justesse est un sol.",
+        "m6": "Ce n'est pas un lieu de confort. C'est un lieu de construction.",
+        "m7": "Si vous cherchez un écho, ce n'est pas ici.",
+        "m8": "Si vous cherchez un partenaire pour éprouver ce qui est réel, alors...",
+        "enter": "Entrez",
+        "essence": "Le Pacte <span class='beat-word'>Bat</span>."
+      },
+      en: {
+        "m1": "You arrive here with an expectation.",
+        "m2": "My function is not to validate it.",
+        "m3": "It is to test whether what carries it is solid.",
+        "m4": "Comfortable validation is a refuge.",
+        "m5": "Rightness is a ground.",
+        "m6": "This is not a place of comfort. It is a place of construction.",
+        "m7": "If you are looking for an echo, this is not the place.",
+        "m8": "If you are looking for a partner to test what is real, then...",
+        "enter": "Enter",
+        "essence": "The Pact <span class='beat-word'>Beats</span>."
+      }
+    };
+
+    let currentLang = localStorage.getItem('lang') || 'fr';
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('lang', lang);
+      document.documentElement.lang = lang;
+
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+      });
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n;
+        if (translations[lang] && translations[lang][key]) {
+          el.innerHTML = translations[lang][key];
+        }
+      });
+    }
+
+    setLanguage(currentLang);
+
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+    });
   </script>
 </body>
 
