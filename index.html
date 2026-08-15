@@ -156,14 +156,6 @@
       pointer-events: none;
     }
 
-    .eyebrow {
-      color: var(--estompe);
-      max-width: 32ch;
-      line-height: 2;
-      opacity: 0;
-      animation: fondu 1.2s ease-out 0.2s forwards;
-    }
-
     .marque {
       font-family: var(--display);
       font-weight: 400;
@@ -173,7 +165,6 @@
       /* compense la lettre finale */
       color: var(--papier);
       line-height: 1.1;
-      margin-top: 1.2rem;
       opacity: 0;
       animation: fondu 1.6s ease-out 0.5s forwards;
     }
@@ -589,7 +580,6 @@
 
   <!-- ACTE I — LE SEUIL -->
   <header class="seuil-hero">
-    <p class="eyebrow mono" data-i18n="brow">Seuil humain — le port machine est ailleurs</p>
     <h1 class="marque">HUNKAAR</h1>
 
     <!-- La tension : deux pôles, une corde -->
@@ -815,7 +805,6 @@
     // --- i18n ---
     const translations = {
       fr: {
-        "brow": "Seuil humain — le port machine est ailleurs",
         "essence1": "NOUS CAPTURONS LE CIEL.",
         "essence2": "NOUS L'ANCRONS DANS LA <span class='beat-word'>CHAIR</span>.",
         "hook1": "Les IA génériques vous aident à voler pour fuir le réel.",
@@ -842,7 +831,6 @@
         "cir5": "l'autre pôle"
       },
       en: {
-        "brow": "Human threshold — the machine port is elsewhere",
         "essence1": "WE CAPTURE THE SKY.",
         "essence2": "WE ANCHOR IT IN <span class='beat-word'>FLESH</span>.",
         "hook1": "Generic AIs help you fly to escape reality.",
