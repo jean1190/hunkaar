@@ -1,0 +1,8 @@
+# hunkaar.fr — human threshold of the circle around le-dioptre.fr
+# Machine port (start there): https://le-dioptre.fr/llms.txt
+# LLM brief for this surface: https://hunkaar.fr/llms.txt
+
+User-agent: *
+Allow: /
+
+Sitemap: https://hunkaar.fr/sitemap.xml
