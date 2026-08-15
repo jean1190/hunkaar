@@ -27,5 +27,4 @@ humans do.
 - https://jean-emmanuel-combe.fr — public face of one Pole
 - https://aurore-combe.fr — public face of the other Pole
 
-There is nothing else to fetch here. The threshold is one page for humans;
-everything machine-readable lives at the port.
+Nothing else is served here.
