@@ -192,6 +192,27 @@
       left: var(--x, 86%);
     }
 
+    /* On wide screens the names sit outside their poles, where no line travels. */
+    @media (min-width: 721px) {
+      .pole {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+      }
+
+      .pole-je {
+        transform: translate(calc(-100% + 7px), -50%);
+      }
+
+      .pole-au {
+        transform: translate(-7px, -50%);
+      }
+
+      .pole-au span {
+        order: 3;
+      }
+    }
+
     .titre {
       grid-row: 2;
       max-width: 60rem;
@@ -479,25 +500,44 @@
     </section>
   </main>
 
-  <p class="colophon" data-i18n="colo">La ligne en haut de page s'écrit seule, différente à chaque visite. Votre main l'infléchit à peine.</p>
+  <p class="colophon" data-i18n="colo">Deux lignes partent de Jean-Emmanuel et d'Aurore et se rejoignent, chaque fois ailleurs. Chaque rencontre reste marquée ; votre main les infléchit à peine.</p>
 
   <script>
-    // ---------- automatic writing ----------
-    // A pen travels from one pole to the other along a prolate cycloid whose
-    // loop radius is modulated by slow noise: sometimes it hesitates flat,
-    // sometimes it loops like cursive. The pointer bends it slightly.
-    // Each finished line is kept and fades like an older exposure.
+    // ---------- two lines meeting ----------
+    // Two pens leave Jean-Emmanuel and Aurore at the same instant and write
+    // toward a meeting point chosen anew each time. Each pen follows a prolate
+    // cycloid whose loops swell and flatten with slow noise, and the pointer
+    // bends both slightly. Where they meet, the two nibs become one point, a
+    // single ripple leaves it, and "nous" surfaces then fades. The point stays:
+    // meetings accumulate across visits into a constellation.
     (() => {
       const canvas = document.getElementById('plume');
       const ctx = canvas.getContext('2d');
       const header = document.querySelector('.seuil');
       const poles = [...document.querySelectorAll('.pole')];
       const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const STORE = 'hunkaar-rencontres';
+      const DRAW_STEPS = 700;
       let w = 0, h = 0, dpr = 1;
       let a = { x: 0, y: 0 }, b = { x: 0, y: 0 };
       const pointer = { x: 0, y: 0, active: false };
       const exposures = [];
       let current = null;
+      let meeting = null; // { at, u, v } while the meeting moment plays
+      let marks = loadMarks();
+
+      function loadMarks() {
+        try {
+          const raw = JSON.parse(localStorage.getItem(STORE) || '[]');
+          return Array.isArray(raw) ? raw.filter(m => typeof m.u === 'number' && typeof m.v === 'number').slice(-60) : [];
+        } catch { return []; }
+      }
+
+      function keepMark(u, v) {
+        marks.push({ u, v });
+        marks = marks.slice(-60);
+        try { localStorage.setItem(STORE, JSON.stringify(marks)); } catch { }
+      }
 
       function layout() {
         dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -515,7 +555,12 @@
         poles.forEach(p => p.style.setProperty('--y', y + 'px'));
       }
 
-      // Smooth 1-D value noise, seeded per line.
+      // A meeting point in relative coordinates: u along the span, v in heights.
+      function place(m) {
+        return { x: a.x + (b.x - a.x) * m.u, y: a.y + h * m.v };
+      }
+
+      // Smooth 1-D value noise, seeded per pen.
       function noise(seed) {
         const r = i => { const s = Math.sin(i * 127.1 + seed * 311.7) * 43758.5453; return s - Math.floor(s); };
         return t => {
@@ -524,45 +569,76 @@
         };
       }
 
-      function newLine() {
+      function newPen(from, side) {
         const seed = Math.random() * 1000;
-        return {
-          n1: noise(seed), n2: noise(seed + 17), n3: noise(seed + 41),
-          loops: (b.x - a.x) / (55 + Math.random() * 35),
-          points: [],
-          t: 0,
-          duration: 9000 + Math.random() * 3000,
-        };
+        return { from, side, n1: noise(seed), n2: noise(seed + 17), n3: noise(seed + 41), loopsPerPx: 1 / (55 + Math.random() * 35), points: [] };
       }
 
-      function penAt(line, t) {
-        const span = b.x - a.x;
-        const phase = t * line.loops * Math.PI * 2;
-        const amp = Math.pow(line.n1(t * 7), 1.6) * Math.min(h * 0.09, w * 0.06, 64);
-        const drift = (line.n2(t * 3) - 0.5) * h * 0.22 * Math.sin(Math.PI * t);
-        const lean = (line.n3(t * 5) - 0.5) * 0.6;
-        // The loop offsets vanish at both poles so the line starts and ends on them.
-        const ease = Math.sin(Math.PI * t);
-        let x = a.x + span * t + ease * amp * (lean - 0.9 * Math.sin(phase));
-        let y = a.y + ease * (drift + amp * (1 - Math.cos(phase)));
-        if (pointer.active) {
-          const dx = pointer.x - x, dy = pointer.y - y;
-          const d = Math.hypot(dx, dy);
-          const pull = ease * Math.max(0, 1 - d / 260) * 0.35;
-          x += dx * pull; y += dy * pull;
+      function newLine() {
+        // On narrow screens the names stand above the poles: meetings stay near the pole line.
+        const narrow = w < 721;
+        const meet = { u: 0.3 + Math.random() * 0.4, v: narrow ? -0.05 + Math.random() * 0.14 : -0.16 + Math.random() * 0.24 };
+        const side = w < 721 || Math.random() < 0.5 ? 1 : -1;
+        return { meet, pens: [newPen('a', side), newPen('b', side)], t: 0, duration: 7000 + Math.random() * 2500 };
+      }
+
+      function penAt(line, pen, t) {
+        const origin = pen.from === 'a' ? a : b;
+        const target = place(line.meet);
+        const dx = target.x - origin.x, dy = target.y - origin.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const tx = dx / length, ty = dy / length;
+        // Normal oriented downward, so both pens loop on the same side of their path.
+        let nx = -ty, ny = tx;
+        if (ny < 0) { nx = -nx; ny = -ny; }
+        nx *= pen.side; ny *= pen.side;
+        const s = 0.5 - 0.5 * Math.cos(Math.PI * t); // both pens arrive together, gently
+        const phase = s * length * pen.loopsPerPx * Math.PI * 2;
+        // Loop size and wander follow the path's own length, so a narrow screen stays legible.
+        const amp = Math.pow(pen.n1(s * 5), 1.6) * Math.min(h * 0.08, length * 0.14, 56);
+        const drift = (pen.n2(s * 3) - 0.5) * Math.min(h * 0.16, length * 0.35);
+        const lean = (pen.n3(s * 5) - 0.5) * 0.6;
+        // Loop offsets vanish at the pole and at the meeting point.
+        const ease = Math.sin(Math.PI * s);
+        const along = ease * amp * (lean - 0.9 * Math.sin(phase));
+        const across = ease * (drift + amp * (1 - Math.cos(phase)));
+        let x = origin.x + dx * s + tx * along + nx * across;
+        let y = origin.y + dy * s + ty * along + ny * across;
+        if (pointer.active && !still) {
+          const px = pointer.x - x, py = pointer.y - y;
+          const d = Math.hypot(px, py);
+          const pull = ease * Math.max(0, 1 - d / 240) * 0.3;
+          x += px * pull; y += py * pull;
         }
         return { x, y };
+      }
+
+      function advance(line, upto) {
+        const from = line.t;
+        const steps = Math.max(1, Math.ceil((upto - from) * DRAW_STEPS));
+        for (let i = 1; i <= steps; i++) {
+          const t = from + (upto - from) * i / steps;
+          line.pens.forEach(pen => pen.points.push(penAt(line, pen, t)));
+        }
+        line.t = upto;
+      }
+
+      function rebuild(line) {
+        const upto = line.t;
+        line.pens.forEach(pen => { pen.points = [penAt(line, pen, 0)]; });
+        line.t = 0;
+        if (upto > 0) advance(line, upto);
       }
 
       function stroke(points, alpha) {
         if (points.length < 2) return;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+        ctx.strokeStyle = `rgba(238, 241, 236, ${alpha})`;
         for (let i = 1; i < points.length; i++) {
           const p = points[i - 1], q = points[i];
           const speed = Math.hypot(q.x - p.x, q.y - p.y);
-          ctx.lineWidth = Math.max(0.6, 2.4 - speed * 0.22);
-          ctx.strokeStyle = `rgba(238, 241, 236, ${alpha})`;
+          ctx.lineWidth = Math.max(0.6, 2.3 - speed * 0.22);
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(q.x, q.y);
@@ -570,24 +646,63 @@
         }
       }
 
-      function drawNib(p) {
-        ctx.fillStyle = 'rgba(239, 183, 161, 0.95)';
+      function dot(p, radius, alpha) {
+        ctx.fillStyle = `rgba(239, 183, 161, ${alpha})`;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      function render() {
-        ctx.clearRect(0, 0, w, h);
-        exposures.forEach((line, i) => stroke(line.points, 0.1 + 0.1 * i));
-        if (current) stroke(current.points, 0.9);
+      function drawMarks() {
+        marks.forEach((m, i) => {
+          const recent = i >= marks.length - 3;
+          dot(place(m), recent ? 2.4 : 1.8, recent ? 0.6 : 0.32);
+        });
       }
 
-      function complete(line) {
-        const steps = 900;
-        line.points = [];
-        for (let i = 0; i <= steps; i++) line.points.push(penAt(line, i / steps));
-        line.t = 1;
+      // The meeting moment: one ripple, the merged point, "nous" surfacing.
+      function drawMeeting(now) {
+        if (!meeting) return;
+        const k = (now - meeting.at) / 3200;
+        if (k >= 1) { meeting = null; return; }
+        const p = place(meeting);
+        const ripple = Math.min(1, k / 0.55);
+        const eased = 1 - Math.pow(1 - ripple, 3);
+        if (ripple < 1) {
+          ctx.strokeStyle = `rgba(238, 241, 236, ${0.55 * (1 - ripple)})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 4 + eased * 34, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        const swell = k < 0.12 ? 1 + 0.6 * Math.sin((k / 0.12) * Math.PI) : 1;
+        dot(p, 3 * swell, 0.95);
+        const word = k < 0.2 ? k / 0.2 : k > 0.6 ? Math.max(0, (1 - k) / 0.4) : 1;
+        ctx.fillStyle = `rgba(238, 241, 236, ${0.85 * word})`;
+        ctx.font = 'italic 400 19px "Bodoni Moda", Georgia, serif';
+        ctx.textAlign = 'center';
+        // The word surfaces on the side the lines did not come from.
+        const above = meeting.v < 0;
+        ctx.textBaseline = above ? 'bottom' : 'top';
+        const lift = 14 + 4 * (1 - word);
+        ctx.fillText('nous', p.x, above ? p.y - lift : p.y + lift);
+      }
+
+      function render(now) {
+        ctx.clearRect(0, 0, w, h);
+        exposures.forEach((line, i) => {
+          let alpha = 0.09 + 0.09 * i;
+          // The pair that just met keeps its ink through the meeting, then settles.
+          if (meeting && i === exposures.length - 1) {
+            const k = Math.min(1, (now - meeting.at) / 3200);
+            alpha += (0.9 - alpha) * (1 - k * k);
+          }
+          line.pens.forEach(pen => stroke(pen.points, alpha));
+        });
+        if (current) current.pens.forEach(pen => stroke(pen.points, 0.9));
+        drawMarks();
+        if (current) current.pens.forEach(pen => { if (pen.points.length) dot(pen.points[pen.points.length - 1], 3, 0.95); });
+        drawMeeting(now);
       }
 
       let last = 0, pause = 0;
@@ -596,21 +711,22 @@
         last = now;
         if (!current) {
           pause -= dt;
-          if (pause <= 0) current = newLine();
+          if (pause <= 0) {
+            current = newLine();
+            rebuild(current);
+          }
         } else {
-          const target = Math.min(1, current.t + dt / current.duration);
-          const steps = Math.max(1, Math.ceil((target - current.t) * 900));
-          for (let i = 1; i <= steps; i++) current.points.push(penAt(current, current.t + (target - current.t) * i / steps));
-          current.t = target;
+          advance(current, Math.min(1, current.t + dt / current.duration));
           if (current.t >= 1) {
+            meeting = { at: now, u: current.meet.u, v: current.meet.v };
+            keepMark(current.meet.u, current.meet.v);
             exposures.push(current);
             if (exposures.length > 3) exposures.shift();
             current = null;
-            pause = 2600;
+            pause = 3600;
           }
         }
-        render();
-        if (current && current.points.length) drawNib(current.points[current.points.length - 1]);
+        render(now);
         requestAnimationFrame(frame);
       }
 
@@ -627,17 +743,24 @@
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
           layout();
-          // Redraw kept lines on the new geometry.
-          exposures.forEach(complete);
-          if (still && current) { complete(current); render(); }
+          exposures.forEach(rebuild);
+          if (current) rebuild(current);
         }, 120);
       });
 
       if (still) {
         const line = newLine();
-        complete(line);
-        current = line;
-        render();
+        rebuild(line);
+        advance(line, 1);
+        keepMark(line.meet.u, line.meet.v);
+        // The single finished pair stays at full strength; no nibs, no ripple.
+        const renderStill = () => {
+          ctx.clearRect(0, 0, w, h);
+          line.pens.forEach(pen => stroke(pen.points, 0.8));
+          drawMarks();
+        };
+        renderStill();
+        window.addEventListener('resize', () => setTimeout(() => { rebuild(line); renderStill(); }, 160));
         return;
       }
 
@@ -675,7 +798,7 @@
         cir3: "la publication continue",
         cir4: "un pôle",
         cir5: "l'autre pôle",
-        colo: "La ligne en haut de page s'écrit seule, différente à chaque visite. Votre main l'infléchit à peine."
+        colo: "Deux lignes partent de Jean-Emmanuel et d'Aurore et se rejoignent, chaque fois ailleurs. Chaque rencontre reste marquée ; votre main les infléchit à peine."
       },
       en: {
         essence1: "We capture the sky.",
@@ -703,7 +826,7 @@
         cir3: "the continuous publication",
         cir4: "one pole",
         cir5: "the other pole",
-        colo: "The line at the top of the page writes itself, different on every visit. Your hand bends it only slightly."
+        colo: "Two lines leave Jean-Emmanuel and Aurore and meet, each time somewhere else. Every meeting stays marked; your hand bends them only slightly."
       }
     };
 
