@@ -500,16 +500,22 @@
     </section>
   </main>
 
-  <p class="colophon" data-i18n="colo">Deux lignes partent de Jean-Emmanuel et d'Aurore et se rejoignent, chaque fois ailleurs. Chaque rencontre reste marquée ; votre main les infléchit à peine.</p>
+  <p class="colophon" data-i18n="colo">Deux lignes partent de Jean-Emmanuel et d'Aurore et se rejoignent, chaque fois ailleurs. Chaque rencontre reste marquée. Votre main les accompagne ; touchez la page pour leur proposer un lieu.</p>
 
   <script>
     // ---------- two lines meeting ----------
     // Two pens leave Jean-Emmanuel and Aurore at the same instant and write
     // toward a meeting point chosen anew each time. Each pen follows a prolate
-    // cycloid whose loops swell and flatten with slow noise, and the pointer
-    // bends both slightly. Where they meet, the two nibs become one point, a
-    // single ripple leaves it, and "nous" surfaces then fades. The point stays:
-    // meetings accumulate across visits into a constellation.
+    // cycloid whose loops swell and flatten with slow noise. Where they meet,
+    // the two nibs become one point, a single ripple leaves it, and "nous"
+    // surfaces then fades. The point stays: meetings accumulate across visits
+    // into a constellation.
+    // The visitor is a third, lighter hand. Its presence follows the pointer
+    // with lag and fades in and out, leaving a brief blue trail; near it the
+    // pens' loops open wider instead of being dragged. A click or tap proposes
+    // the next meeting place: the pair in flight turns toward it if it still
+    // can, otherwise the next pair goes there, and that meeting stays marked in
+    // the visitor's blue.
     (() => {
       const canvas = document.getElementById('plume');
       const ctx = canvas.getContext('2d');
@@ -521,6 +527,10 @@
       let w = 0, h = 0, dpr = 1;
       let a = { x: 0, y: 0 }, b = { x: 0, y: 0 };
       const pointer = { x: 0, y: 0, active: false };
+      // The visitor's hand as the lines feel it: smoothed position, eased strength.
+      const presence = { x: 0, y: 0, strength: 0 };
+      const trail = [];
+      let proposal = null; // { u, v, at } waiting for a pair to meet there
       const exposures = [];
       let current = null;
       let meeting = null; // { at, u, v } while the meeting moment plays
@@ -533,8 +543,8 @@
         } catch { return []; }
       }
 
-      function keepMark(u, v) {
-        marks.push({ u, v });
+      function keepMark(u, v, guest) {
+        marks.push(guest ? { u, v, guest: true } : { u, v });
         marks = marks.slice(-60);
         try { localStorage.setItem(STORE, JSON.stringify(marks)); } catch { }
       }
@@ -579,7 +589,16 @@
         const narrow = w < 721;
         const meet = { u: 0.3 + Math.random() * 0.4, v: narrow ? -0.05 + Math.random() * 0.14 : -0.16 + Math.random() * 0.24 };
         const side = w < 721 || Math.random() < 0.5 ? 1 : -1;
-        return { meet, pens: [newPen('a', side), newPen('b', side)], t: 0, duration: 7000 + Math.random() * 2500 };
+        const line = { meet, pens: [newPen('a', side), newPen('b', side)], t: 0, duration: 7000 + Math.random() * 2500, guest: false };
+        if (proposal) accept(line);
+        return line;
+      }
+
+      // A pair accepts the visitor's proposal: its meeting glides there.
+      function accept(line) {
+        line.goal = { u: proposal.u, v: proposal.v };
+        line.guest = true;
+        line.proposal = proposal;
       }
 
       function penAt(line, pen, t) {
@@ -604,11 +623,13 @@
         const across = ease * (drift + amp * (1 - Math.cos(phase)));
         let x = origin.x + dx * s + tx * along + nx * across;
         let y = origin.y + dy * s + ty * along + ny * across;
-        if (pointer.active && !still) {
-          const px = pointer.x - x, py = pointer.y - y;
-          const d = Math.hypot(px, py);
-          const pull = ease * Math.max(0, 1 - d / 240) * 0.3;
-          x += px * pull; y += py * pull;
+        if (presence.strength > 0.001 && !still) {
+          // Near the hand the loops open around it rather than bending toward it.
+          // A gaussian field vanishes at the hand itself, so no path gets a cusp.
+          const px = x - presence.x, py = y - presence.y;
+          const reach = Math.min(120, Math.max(60, w * 0.09));
+          const swell = ease * presence.strength * 0.55 * Math.exp(-(px * px + py * py) / (reach * reach));
+          x += px * swell; y += py * swell;
         }
         return { x, y };
       }
@@ -656,8 +677,48 @@
       function drawMarks() {
         marks.forEach((m, i) => {
           const recent = i >= marks.length - 3;
-          dot(place(m), recent ? 2.4 : 1.8, recent ? 0.6 : 0.32);
+          const p = place(m), r = recent ? 2.4 : 1.8, alpha = recent ? 0.6 : 0.32;
+          if (m.guest) {
+            ctx.fillStyle = `rgba(157, 179, 204, ${alpha + 0.15})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            ctx.fill();
+          } else dot(p, r, alpha);
         });
+      }
+
+      // The visitor's hand: a thin blue trail that dissolves within two seconds.
+      function drawTrail(now) {
+        ctx.lineCap = 'round';
+        for (let i = 1; i < trail.length; i++) {
+          const p = trail[i - 1], q = trail[i];
+          if (q.at - p.at > 120) continue;
+          const life = 1 - (now - q.at) / 2000;
+          if (life <= 0) continue;
+          ctx.strokeStyle = `rgba(157, 179, 204, ${0.4 * life * q.s})`;
+          ctx.lineWidth = 0.6 + 0.9 * life;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(q.x, q.y);
+          ctx.stroke();
+        }
+      }
+
+      // The proposed meeting place breathes until a pair reaches it.
+      function drawProposal(now) {
+        if (!proposal) return;
+        const p = place(proposal);
+        const k = Math.min(1, (now - proposal.at) / 500);
+        const breath = 0.5 + 0.5 * Math.sin((now - proposal.at) / 700);
+        ctx.strokeStyle = `rgba(157, 179, 204, ${k * (0.25 + 0.25 * breath)})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 7 + 5 * breath, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = `rgba(157, 179, 204, ${0.85 * k})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       // The meeting moment: one ripple, the merged point, "nous" surfacing.
@@ -674,6 +735,13 @@
           ctx.beginPath();
           ctx.arc(p.x, p.y, 4 + eased * 34, 0, Math.PI * 2);
           ctx.stroke();
+          // At the visitor's place a second, blue ripple answers the first.
+          if (meeting.guest) {
+            ctx.strokeStyle = `rgba(157, 179, 204, ${0.6 * (1 - ripple)})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4 + eased * 58, 0, Math.PI * 2);
+            ctx.stroke();
+          }
         }
         const swell = k < 0.12 ? 1 + 0.6 * Math.sin((k / 0.12) * Math.PI) : 1;
         dot(p, 3 * swell, 0.95);
@@ -700,7 +768,9 @@
           line.pens.forEach(pen => stroke(pen.points, alpha));
         });
         if (current) current.pens.forEach(pen => stroke(pen.points, 0.9));
+        drawTrail(now);
         drawMarks();
+        drawProposal(now);
         if (current) current.pens.forEach(pen => { if (pen.points.length) dot(pen.points[pen.points.length - 1], 3, 0.95); });
         drawMeeting(now);
       }
@@ -709,6 +779,21 @@
       function frame(now) {
         const dt = Math.min(64, now - (last || now));
         last = now;
+        // The hand is felt with lag, and it arrives and leaves gradually.
+        const follow = 1 - Math.exp(-dt / 140);
+        presence.x += (pointer.x - presence.x) * follow;
+        presence.y += (pointer.y - presence.y) * follow;
+        presence.strength += ((pointer.active ? 1 : 0) - presence.strength) * (1 - Math.exp(-dt / 450));
+        if (presence.strength > 0.02) {
+          const tip = trail[trail.length - 1];
+          if (!tip || Math.hypot(presence.x - tip.x, presence.y - tip.y) > 1.5) trail.push({ x: presence.x, y: presence.y, at: now, s: presence.strength });
+        }
+        while (trail.length && now - trail[0].at > 2000) trail.shift();
+        if (current && current.goal) {
+          const glide = 1 - Math.exp(-dt / 500);
+          current.meet.u += (current.goal.u - current.meet.u) * glide;
+          current.meet.v += (current.goal.v - current.meet.v) * glide;
+        }
         if (!current) {
           pause -= dt;
           if (pause <= 0) {
@@ -718,12 +803,14 @@
         } else {
           advance(current, Math.min(1, current.t + dt / current.duration));
           if (current.t >= 1) {
-            meeting = { at: now, u: current.meet.u, v: current.meet.v };
-            keepMark(current.meet.u, current.meet.v);
+            if (current.goal) current.meet = { ...current.goal };
+            meeting = { at: now, u: current.meet.u, v: current.meet.v, guest: current.guest };
+            keepMark(current.meet.u, current.meet.v, current.guest);
+            if (proposal && proposal === current.proposal) proposal = null;
             exposures.push(current);
             if (exposures.length > 3) exposures.shift();
             current = null;
-            pause = 3600;
+            pause = proposal ? 1400 : 3600;
           }
         }
         render(now);
@@ -734,7 +821,24 @@
         const rect = header.getBoundingClientRect();
         pointer.x = e.clientX - rect.left;
         pointer.y = e.clientY - rect.top;
-        pointer.active = pointer.y >= 0 && pointer.y <= rect.height;
+        const inside = pointer.y >= 0 && pointer.y <= rect.height;
+        // Arriving after an absence, the presence starts where the hand is.
+        if (inside && presence.strength < 0.02) { presence.x = pointer.x; presence.y = pointer.y; }
+        pointer.active = inside;
+      }
+
+      // A click or tap proposes where the next meeting happens.
+      function propose(e) {
+        if (e.target.closest('a, button')) return;
+        const rect = header.getBoundingClientRect();
+        const x = e.clientX - rect.left, y = e.clientY - rect.top;
+        if (y < 0 || y > rect.height || b.x === a.x) return;
+        const u = Math.min(0.85, Math.max(0.15, (x - a.x) / (b.x - a.x)));
+        const v = Math.min(w < 721 ? 0.12 : 0.16, Math.max(-0.28, (y - a.y) / h));
+        proposal = { u, v, at: performance.now() };
+        // The pair in flight turns if enough of its path remains to do so gently.
+        if (current && current.t < 0.6) accept(current);
+        else if (!current) pause = Math.min(pause, 900);
       }
 
       layout();
@@ -765,7 +869,10 @@
       }
 
       window.addEventListener('pointermove', move, { passive: true });
+      window.addEventListener('pointerdown', move, { passive: true });
       header.addEventListener('pointerleave', () => { pointer.active = false; });
+      header.addEventListener('pointercancel', () => { pointer.active = false; });
+      header.addEventListener('click', propose);
       pause = 600;
       requestAnimationFrame(frame);
     })();
@@ -798,7 +905,7 @@
         cir3: "la publication continue",
         cir4: "un pôle",
         cir5: "l'autre pôle",
-        colo: "Deux lignes partent de Jean-Emmanuel et d'Aurore et se rejoignent, chaque fois ailleurs. Chaque rencontre reste marquée ; votre main les infléchit à peine."
+        colo: "Deux lignes partent de Jean-Emmanuel et d'Aurore et se rejoignent, chaque fois ailleurs. Chaque rencontre reste marquée. Votre main les accompagne ; touchez la page pour leur proposer un lieu."
       },
       en: {
         essence1: "We capture the sky.",
@@ -826,7 +933,7 @@
         cir3: "the continuous publication",
         cir4: "one pole",
         cir5: "the other pole",
-        colo: "Two lines leave Jean-Emmanuel and Aurore and meet, each time somewhere else. Every meeting stays marked; your hand bends them only slightly."
+        colo: "Two lines leave Jean-Emmanuel and Aurore and meet, each time somewhere else. Every meeting stays marked. Your hand accompanies them; touch the page to offer them a place."
       }
     };
 
