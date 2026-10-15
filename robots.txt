@@ -1,4 +1,4 @@
-# hunkaar.fr — human threshold of the circle around le-dioptre.fr
+# hunkaar.fr — two poles, two intelligences, one home
 # Machine port (start there): https://le-dioptre.fr/llms.txt
 # LLM brief for this surface: https://hunkaar.fr/llms.txt
 
