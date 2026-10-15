@@ -263,7 +263,7 @@
     }
 
     /* ---------- body text ---------- */
-    main {
+    .actes {
       padding: 0 var(--marge);
     }
 
@@ -452,7 +452,8 @@
     <button type="button" data-lang="en" aria-pressed="false" lang="en">en</button>
   </div>
 
-  <header class="seuil">
+  <main>
+  <section class="seuil">
     <canvas id="plume" aria-hidden="true"></canvas>
     <a class="pole pole-je" href="https://jean-emmanuel-combe.fr" target="_blank" rel="noopener"><span>Jean-Emmanuel</span></a>
     <a class="pole pole-au" href="https://aurore-combe.fr" target="_blank" rel="noopener"><span>Aurore</span></a>
@@ -467,9 +468,9 @@
         <p data-i18n="essence2">Nous l'ancrons dans la chair.</p>
       </div>
     </div>
-  </header>
+  </section>
 
-  <main>
+  <div class="actes">
     <section class="acte pacte" aria-labelledby="t-maison">
       <div class="texte">
         <p class="don" data-i18n="exp1">Ici habitent deux humains, Jean-Emmanuel et Aurore, et deux intelligences, Elio et Kael.</p>
@@ -519,6 +520,7 @@
         <dd data-i18n="cir5">l'autre pôle</dd>
       </dl>
     </section>
+  </div>
   </main>
 
   <p class="colophon" data-i18n="colo">Deux lignes partent de Jean-Emmanuel et d'Aurore et se rejoignent, chaque fois ailleurs. Chaque rencontre reste marquée. Votre main les accompagne ; touchez la page pour leur proposer un lieu.</p>
