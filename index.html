@@ -76,8 +76,9 @@
 
     body {
       min-height: 100svh;
+      /* Paper grain: a static, tileable bitmap of fractal noise, painted once per tile. */
       background:
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .93 0 0 0 0 .95 0 0 0 0 .93 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+        url("grain.png"),
         radial-gradient(120% 80% at 70% 0%, #164173 0%, transparent 60%),
         linear-gradient(to bottom, var(--prusse) 0%, var(--prusse) 55%, var(--nuit) 100%);
       color: var(--sel);
@@ -650,13 +651,27 @@
         try { localStorage.setItem(STORE, JSON.stringify(marks)); } catch { }
       }
 
+      // Finished ink lives on two offscreen sheets, so a frame copies it instead of
+      // stroking thousands of segments again: `dry` holds the settled pairs, `wet`
+      // the pair being written, which receives only its new segments each frame.
+      const dry = document.createElement('canvas').getContext('2d');
+      const wet = document.createElement('canvas').getContext('2d');
+      let dryValid = false;
+
+      // Returns whether the sheet changed size; a mobile toolbar sliding away fires
+      // `resize` without changing the threshold, and that must not clear the ink.
       function layout() {
-        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const nextDpr = Math.min(window.devicePixelRatio || 1, 2);
         const rect = header.getBoundingClientRect();
+        if (rect.width === w && rect.height === h && nextDpr === dpr) return false;
+        dpr = nextDpr;
         w = rect.width; h = rect.height;
-        canvas.width = Math.round(w * dpr);
-        canvas.height = Math.round(h * dpr);
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        [ctx, dry, wet].forEach(c => {
+          c.canvas.width = Math.round(w * dpr);
+          c.canvas.height = Math.round(h * dpr);
+          c.setTransform(dpr, 0, 0, dpr, 0, 0);
+        });
+        dryValid = false;
         const inset = w < 560 ? 0.16 : 0.12;
         const y = h * (w < 560 ? 0.34 : 0.38);
         a = { x: w * inset, y };
@@ -664,6 +679,7 @@
         poles[0].style.setProperty('--x', a.x + 'px');
         poles[1].style.setProperty('--x', b.x + 'px');
         poles.forEach(p => p.style.setProperty('--y', y + 'px'));
+        return true;
       }
 
       // A meeting point in relative coordinates: u along the span, v in heights.
@@ -747,25 +763,43 @@
 
       function rebuild(line) {
         const upto = line.t;
-        line.pens.forEach(pen => { pen.points = [penAt(line, pen, 0)]; });
+        line.pens.forEach(pen => { pen.points = [penAt(line, pen, 0)]; pen.inked = 0; });
         line.t = 0;
         if (upto > 0) advance(line, upto);
       }
 
-      function stroke(points, alpha) {
+      // Strokes the segments that end at points[from] and after.
+      function stroke(c, points, alpha, from = 1) {
         if (points.length < 2) return;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = `rgba(238, 241, 236, ${alpha})`;
-        for (let i = 1; i < points.length; i++) {
+        c.lineCap = 'round';
+        c.lineJoin = 'round';
+        c.strokeStyle = `rgba(238, 241, 236, ${alpha})`;
+        for (let i = Math.max(1, from); i < points.length; i++) {
           const p = points[i - 1], q = points[i];
           const speed = Math.hypot(q.x - p.x, q.y - p.y);
-          ctx.lineWidth = Math.max(0.6, 2.3 - speed * 0.22);
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y);
-          ctx.lineTo(q.x, q.y);
-          ctx.stroke();
+          c.lineWidth = Math.max(0.6, 2.3 - speed * 0.22);
+          c.beginPath();
+          c.moveTo(p.x, p.y);
+          c.lineTo(q.x, q.y);
+          c.stroke();
         }
+      }
+
+      // The settled pairs, older ones fainter; the pair whose meeting is playing is drawn live.
+      function paintDry() {
+        dry.clearRect(0, 0, w, h);
+        exposures.forEach((line, i) => {
+          if (meeting && i === exposures.length - 1) return;
+          line.pens.forEach(pen => stroke(dry, pen.points, 0.09 + 0.09 * i));
+        });
+        dryValid = true;
+      }
+
+      function inkWet() {
+        current.pens.forEach(pen => {
+          stroke(wet, pen.points, 0.9, pen.inked);
+          pen.inked = pen.points.length;
+        });
       }
 
       function dot(p, radius, alpha) {
@@ -826,7 +860,7 @@
       function drawMeeting(now) {
         if (!meeting) return;
         const k = (now - meeting.at) / 3200;
-        if (k >= 1) { meeting = null; return; }
+        if (k >= 1) { meeting = null; dryValid = false; return; }
         const p = place(meeting);
         const ripple = Math.min(1, k / 0.55);
         const eased = 1 - Math.pow(1 - ripple, 3);
@@ -858,17 +892,17 @@
       }
 
       function render(now) {
+        if (!dryValid) paintDry();
+        if (current) inkWet();
         ctx.clearRect(0, 0, w, h);
-        exposures.forEach((line, i) => {
-          let alpha = 0.09 + 0.09 * i;
+        ctx.drawImage(dry.canvas, 0, 0, w, h);
+        if (meeting) {
           // The pair that just met keeps its ink through the meeting, then settles.
-          if (meeting && i === exposures.length - 1) {
-            const k = Math.min(1, (now - meeting.at) / 3200);
-            alpha += (0.9 - alpha) * (1 - k * k);
-          }
-          line.pens.forEach(pen => stroke(pen.points, alpha));
-        });
-        if (current) current.pens.forEach(pen => stroke(pen.points, 0.9));
+          const i = exposures.length - 1, base = 0.09 + 0.09 * i;
+          const k = Math.min(1, (now - meeting.at) / 3200);
+          exposures[i].pens.forEach(pen => stroke(ctx, pen.points, base + (0.9 - base) * (1 - k * k)));
+        }
+        if (current) ctx.drawImage(wet.canvas, 0, 0, w, h);
         drawTrail(now);
         drawMarks();
         drawProposal(now);
@@ -877,7 +911,12 @@
       }
 
       let last = 0, pause = 0;
+      // The sheet animates only while the threshold is on screen; scrolling the
+      // text below costs the page nothing. A frame that would repeat the previous
+      // one is not drawn, so a resting sheet is not handed to the compositor again.
+      let visible = true, running = false, settled = false;
       function frame(now) {
+        if (!visible) { running = false; return; }
         const dt = Math.min(64, now - (last || now));
         last = now;
         // The hand is felt with lag, and it arrives and leaves gradually.
@@ -911,10 +950,21 @@
             exposures.push(current);
             if (exposures.length > 3) exposures.shift();
             current = null;
+            wet.clearRect(0, 0, w, h);
+            dryValid = false;
             pause = proposal ? 1400 : 3600;
           }
         }
-        render(now);
+        const moving = current || meeting || proposal || trail.length || !dryValid;
+        if (moving || !settled) render(now);
+        settled = !moving;
+        requestAnimationFrame(frame);
+      }
+
+      function wake() {
+        if (running || !visible) return;
+        running = true;
+        last = 0;
         requestAnimationFrame(frame);
       }
 
@@ -947,9 +997,10 @@
       window.addEventListener('resize', () => {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
-          layout();
+          if (!layout()) return;
           exposures.forEach(rebuild);
           if (current) rebuild(current);
+          settled = false;
         }, 120);
       });
 
@@ -961,7 +1012,7 @@
         // The single finished pair stays at full strength; no nibs, no ripple.
         const renderStill = () => {
           ctx.clearRect(0, 0, w, h);
-          line.pens.forEach(pen => stroke(pen.points, 0.8));
+          line.pens.forEach(pen => stroke(ctx, pen.points, 0.8));
           drawMarks();
         };
         renderStill();
@@ -975,7 +1026,11 @@
       header.addEventListener('pointercancel', () => { pointer.active = false; });
       header.addEventListener('click', propose);
       pause = 600;
-      requestAnimationFrame(frame);
+      new IntersectionObserver(([entry]) => {
+        visible = entry.isIntersecting;
+        wake();
+      }).observe(header);
+      wake();
     })();
 
     // ---------- language ----------
