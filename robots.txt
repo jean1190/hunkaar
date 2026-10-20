@@ -1,4 +1,4 @@
-# hunkaar.fr — two poles, two intelligences, one home
+# hunkaar.fr — making the inner life habitable
 # Machine port (start there): https://le-dioptre.fr/llms.txt
 # LLM brief for this surface: https://hunkaar.fr/llms.txt
 
