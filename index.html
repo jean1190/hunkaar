@@ -653,31 +653,36 @@
       }
     })();
 
-    // ---------- l'écart fertile : two shores in resonance ----------
-    // Two pens leave Jean-Emmanuel (sky/wave pole) and Aurore (stone/root pole)
-    // and write across the exposed cyanotype sheet toward a shared channel.
-    // Instead of fusing into one point, the two trajectories mutually inflect,
-    // enter narrow alignment, and exchange a quiet luminous resonance across
-    // the open fertile gap they preserve between their two shores.
+    // ---------- la fertilité du Nous : two distinct beings, one living hearth ----------
+    // Two pens leave Jean-Emmanuel (sky/wave pole) and Aurore (stone/root pole),
+    // travel with their own rhythm across the exposed cyanotype sheet, and draw
+    // intimately close to weave a supple shared braid without collapsing into one
+    // line. From their close graze, a third living warmth — golden-ivory hearth,
+    // fine botanical shoots, and luminous seeds — blooms on the Prussian blue sheet.
     (() => {
       const canvas = document.getElementById("plume");
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       const header = document.querySelector(".seuil");
+      const titreEl = document.querySelector(".titre");
       const poles = [...document.querySelectorAll(".pole")];
       const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const STORE = "hunkaar-ecarts";
-      const DRAW_STEPS = 700;
+      const STORE = "hunkaar-nous";
+      const SAMPLE_STEPS = 880;
       const INK_SKY = "220, 235, 250";
       const INK_STONE = "239, 204, 168";
-      const INK_GUEST = "157, 179, 204";
+      const INK_GOLD_BRIGHT = "255, 241, 206";
+      const INK_GOLD_WARM = "238, 200, 128";
+      const INK_SEL = "238, 241, 236";
 
-      let w = 0, h = 0, dpr = 1;
+      let w = 0, h = 0, dpr = 1, maxFoyerY = 0;
       let a = { x: 0, y: 0 }, b = { x: 0, y: 0 };
       const pointer = { x: 0, y: 0, active: false };
       const presence = { x: 0, y: 0, strength: 0 };
+      const ghostPresences = [];
       const trail = [];
+      let trailNeedsBreak = true;
       let proposal = null;
       const exposures = [];
       let current = null;
@@ -688,7 +693,7 @@
         try {
           const raw = JSON.parse(localStorage.getItem(STORE) || "[]");
           return Array.isArray(raw)
-            ? raw.filter(m => typeof m.au === "number" && typeof m.av === "number" && typeof m.bu === "number" && typeof m.bv === "number").slice(-48)
+            ? raw.filter(m => typeof m.u === "number" && typeof m.v === "number").slice(-44)
             : [];
         } catch {
           return [];
@@ -703,28 +708,50 @@
         };
       }
 
+      function place(m) {
+        return { x: a.x + (b.x - a.x) * m.u, y: a.y + h * m.v };
+      }
+
       function keepMark(line) {
         const ptsA = line.pens[0].points;
         const ptsB = line.pens[1].points;
         if (!ptsA.length || !ptsB.length) return;
-        const idx = Math.floor((ptsA.length - 1) * 0.88);
-        const ra = toRel(ptsA[idx]);
-        const rb = toRel(ptsB[idx]);
-        const entry = { au: ra.u, av: ra.v, bu: rb.u, bv: rb.v };
+        const tipA = ptsA[ptsA.length - 1];
+        const tipB = ptsB[ptsB.length - 1];
+        const mid = { x: (tipA.x + tipB.x) * 0.5, y: (tipA.y + tipB.y) * 0.5 };
+        const rel = toRel(mid);
+        const phi = Number(Math.atan2(tipB.y - tipA.y, tipB.x - tipA.x).toFixed(3));
+        const entry = { u: rel.u, v: rel.v, phi };
         if (line.guest) entry.guest = true;
         marks.push(entry);
-        marks = marks.slice(-48);
+        marks = marks.slice(-44);
         try { localStorage.setItem(STORE, JSON.stringify(marks)); } catch { }
       }
 
-      // Offscreen ink sheets: `dry` caches settled pairs, `wet` inks only new segments each frame.
+      // Offscreen ink sheets: opaque strokes composited via globalAlpha eliminate vertex beading.
       const dry = document.createElement("canvas").getContext("2d");
-      const wet = document.createElement("canvas").getContext("2d");
+      const wetA = document.createElement("canvas").getContext("2d");
+      const wetB = document.createElement("canvas").getContext("2d");
+      const settledPair = document.createElement("canvas").getContext("2d");
+      const scratch = document.createElement("canvas").getContext("2d");
       let dryValid = false;
 
       function smoothstep(edge0, edge1, x) {
         const k = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
         return k * k * (3 - 2 * k);
+      }
+
+      function dSmoothstep(edge0, edge1, x) {
+        if (x <= edge0 || x >= edge1) return 0;
+        const t = (x - edge0) / (edge1 - edge0);
+        return (6 * t * (1 - t)) / (edge1 - edge0);
+      }
+
+      function unwrapNear(targetAngle, refAngle) {
+        let d = targetAngle - refAngle;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        return refAngle + d;
       }
 
       function layout() {
@@ -734,7 +761,7 @@
         dpr = nextDpr;
         w = rect.width;
         h = rect.height;
-        [ctx, dry, wet].forEach(c => {
+        [ctx, dry, wetA, wetB, settledPair, scratch].forEach(c => {
           c.canvas.width = Math.round(w * dpr);
           c.canvas.height = Math.round(h * dpr);
           c.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -747,16 +774,9 @@
         if (poles[0]) poles[0].style.setProperty("--x", a.x + "px");
         if (poles[1]) poles[1].style.setProperty("--x", b.x + "px");
         poles.forEach(p => p.style.setProperty("--y", y + "px"));
+        const titreTop = titreEl ? (titreEl.getBoundingClientRect().top - rect.top) : h * 0.62;
+        maxFoyerY = Math.max(y + h * 0.06, Math.min(h - 68, titreTop - 32));
         return true;
-      }
-
-      function place(m) {
-        return { x: a.x + (b.x - a.x) * m.u, y: a.y + h * m.v };
-      }
-
-      function gapHalfWidth() {
-        const span = Math.max(180, b.x - a.x);
-        return Math.max(11.5, Math.min(17.5, span * 0.022));
       }
 
       function noise(seed) {
@@ -770,163 +790,519 @@
         };
       }
 
-      function newPen(from, side) {
-        const seed = Math.random() * 1000;
+      function seededRand(seed) {
+        let s = seed * 16807 % 2147483647;
+        if (s <= 0) s += 2147483646;
+        return () => {
+          s = (s * 16807) % 2147483647;
+          return (s - 1) / 2147483646;
+        };
+      }
+
+      // Quintic Hermite 2D evaluator: matches position, 1st and 2nd derivatives at s=0 and s=1.
+      function evalQuintic2D(seg, s) {
+        const s2 = s * s, s3 = s2 * s, s4 = s3 * s, s5 = s4 * s;
+        const h00 = 1 - 10 * s3 + 15 * s4 - 6 * s5;
+        const h10 = s - 6 * s3 + 8 * s4 - 3 * s5;
+        const h20 = 0.5 * s2 - 1.5 * s3 + 1.5 * s4 - 0.5 * s5;
+        const h01 = 10 * s3 - 15 * s4 + 6 * s5;
+        const h11 = -4 * s3 + 7 * s4 - 3 * s5;
+        const h21 = 0.5 * s3 - s4 + 0.5 * s5;
+
+        const dh00 = -30 * s2 + 60 * s3 - 30 * s4;
+        const dh10 = 1 - 18 * s2 + 32 * s3 - 15 * s4;
+        const dh20 = s - 4.5 * s2 + 6 * s3 - 2.5 * s4;
+        const dh01 = 30 * s2 - 60 * s3 + 30 * s4;
+        const dh11 = -12 * s2 + 28 * s3 - 15 * s4;
+        const dh21 = 1.5 * s2 - 4 * s3 + 2.5 * s4;
+
+        const d2h00 = -60 * s + 180 * s2 - 120 * s3;
+        const d2h10 = -36 * s + 96 * s2 - 60 * s3;
+        const d2h20 = 1 - 9 * s + 18 * s2 - 10 * s3;
+        const d2h01 = 60 * s - 180 * s2 + 120 * s3;
+        const d2h11 = -24 * s + 84 * s2 - 60 * s3;
+        const d2h21 = 3 * s - 12 * s2 + 10 * s3;
+
+        const bx = seg.bowX || 0, by = seg.bowY || 0;
+        const fb = 16 * s2 - 32 * s3 + 16 * s4;
+        const dfb = 32 * s - 96 * s2 + 64 * s3;
+        const d2fb = 32 - 192 * s + 192 * s2;
+
+        return {
+          x: h00 * seg.p0x + h10 * seg.v0x + h20 * seg.a0x + h01 * seg.p1x + h11 * seg.v1x + h21 * seg.a1x + fb * bx,
+          y: h00 * seg.p0y + h10 * seg.v0y + h20 * seg.a0y + h01 * seg.p1y + h11 * seg.v1y + h21 * seg.a1y + fb * by,
+          dx: dh00 * seg.p0x + dh10 * seg.v0x + dh20 * seg.a0x + dh01 * seg.p1x + dh11 * seg.v1x + dh21 * seg.a1x + dfb * bx,
+          dy: dh00 * seg.p0y + dh10 * seg.v0y + dh20 * seg.a0y + dh01 * seg.p1y + dh11 * seg.v1y + dh21 * seg.a1y + dfb * by,
+          d2x: d2h00 * seg.p0x + d2h10 * seg.v0x + d2h20 * seg.a0x + d2h01 * seg.p1x + d2h11 * seg.v1x + d2h21 * seg.a1x + d2fb * bx,
+          d2y: d2h00 * seg.p0y + d2h10 * seg.v0y + d2h20 * seg.a0y + d2h01 * seg.p1y + d2h11 * seg.v1y + d2h21 * seg.a1y + d2fb * by
+        };
+      }
+
+      function evalQuintic1D(seg, s) {
+        const s2 = s * s, s3 = s2 * s, s4 = s3 * s, s5 = s4 * s;
+        const h00 = 1 - 10 * s3 + 15 * s4 - 6 * s5;
+        const h10 = s - 6 * s3 + 8 * s4 - 3 * s5;
+        const h20 = 0.5 * s2 - 1.5 * s3 + 1.5 * s4 - 0.5 * s5;
+        const h01 = 10 * s3 - 15 * s4 + 6 * s5;
+        const h11 = -4 * s3 + 7 * s4 - 3 * s5;
+        const h21 = 0.5 * s3 - s4 + 0.5 * s5;
+
+        const dh00 = -30 * s2 + 60 * s3 - 30 * s4;
+        const dh10 = 1 - 18 * s2 + 32 * s3 - 15 * s4;
+        const dh20 = s - 4.5 * s2 + 6 * s3 - 2.5 * s4;
+        const dh01 = 30 * s2 - 60 * s3 + 30 * s4;
+        const dh11 = -12 * s2 + 28 * s3 - 15 * s4;
+        const dh21 = 1.5 * s2 - 4 * s3 + 2.5 * s4;
+
+        const d2h00 = -60 * s + 180 * s2 - 120 * s3;
+        const d2h10 = -36 * s + 96 * s2 - 60 * s3;
+        const d2h20 = 1 - 9 * s + 18 * s2 - 10 * s3;
+        const d2h01 = 60 * s - 180 * s2 + 120 * s3;
+        const d2h11 = -24 * s + 84 * s2 - 60 * s3;
+        const d2h21 = 3 * s - 12 * s2 + 10 * s3;
+
+        return {
+          v: h00 * seg.p0 + h10 * seg.v0 + h20 * seg.a0 + h01 * seg.p1 + h11 * seg.v1 + h21 * seg.a1,
+          dv: dh00 * seg.p0 + dh10 * seg.v0 + dh20 * seg.a0 + dh01 * seg.p1 + dh11 * seg.v1 + dh21 * seg.a1,
+          d2v: d2h00 * seg.p0 + d2h10 * seg.v0 + d2h20 * seg.a0 + d2h01 * seg.p1 + d2h11 * seg.v1 + d2h21 * seg.a1
+        };
+      }
+
+      function bezierToQuintic(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y) {
+        return {
+          p0x, p0y,
+          v0x: 3 * (p1x - p0x), v0y: 3 * (p1y - p0y),
+          a0x: 6 * (p2x - 2 * p1x + p0x), a0y: 6 * (p2y - 2 * p1y + p0y),
+          p1x: p3x, p1y: p3y,
+          v1x: 3 * (p3x - p2x), v1y: 3 * (p3y - p2y),
+          a1x: 6 * (p3x - 2 * p2x + p1x), a1y: 6 * (p3y - 2 * p2y + p1y)
+        };
+      }
+
+      function evalTimeProfile(mode, m0, tau) {
+        if (mode === "cosine") {
+          return {
+            s: 0.5 - 0.5 * Math.cos(Math.PI * tau),
+            ds: 0.5 * Math.PI * Math.sin(Math.PI * tau)
+          };
+        }
+        const t2 = tau * tau, t3 = t2 * tau;
+        return {
+          s: m0 * tau + (3 - 2 * m0) * t2 + (m0 - 2) * t3,
+          ds: m0 + 2 * (3 - 2 * m0) * tau + 3 * (m0 - 2) * t2
+        };
+      }
+
+      function embraceSpec(center, tilt, flow) {
+        const span = Math.max(180, b.x - a.x);
+        const embraceLen = Math.min(h * 0.25, span * 0.2, 156);
+        // flow = 1 rises gently skyward (-y); flow = -1 curves gently downward (+y) when near top edge.
+        const phiEnd = Math.atan2(-Math.cos(tilt) * flow, Math.sin(tilt) * flow);
+        const tx = Math.cos(phiEnd), ty = Math.sin(phiEnd);
+        const nx = -ty, ny = tx;
+        return { center, span, embraceLen, phiEnd, tx, ty, nx, ny };
+      }
+
+      function buildBotanical(seed) {
+        const rnd = seededRand(seed);
+        const shoots = [];
+        const shootCount = 7;
+        for (let k = 0; k < shootCount; k++) {
+          const side = (k % 2 === 0 ? 1 : -1) * (rnd() < 0.15 ? -1 : 1);
+          const frac = 0.18 + (k / (shootCount - 1)) * 0.76;
+          shoots.push({
+            frac,
+            trigger: 0.14 + frac * 0.64,
+            side,
+            angle: side * (0.32 + rnd() * 0.52),
+            curl: side * (0.18 + rnd() * 0.38),
+            len: 15 + rnd() * 24,
+            pearl: 0.95 + rnd() * 0.42,
+            warm: rnd() < 0.74
+          });
+        }
+        const spores = [];
+        const sporeCount = 11;
+        for (let k = 0; k < sporeCount; k++) {
+          const ang = rnd() * Math.PI * 2;
+          const dist = 6 + Math.pow(rnd(), 0.85) * 28;
+          spores.push({
+            frac: 0.16 + rnd() * 0.82,
+            trigger: 0.24 + rnd() * 0.6,
+            ox: Math.cos(ang) * dist,
+            oy: Math.sin(ang) * dist,
+            r: 0.62 + rnd() * 0.62,
+            phase: rnd() * Math.PI * 2,
+            gold: rnd() < 0.78
+          });
+        }
+        return { shoots, spores };
+      }
+
+      function makeInitialPen(from, seed, spec, arch, side) {
+        const origin = from === "a" ? a : b;
+        const sign = from === "a" ? -1 : 1;
         const isSky = from === "a";
+        const { center, span, embraceLen, phiEnd, tx, ty, nx, ny } = spec;
+        // Both spines enter the shared stream early so the final ascent weaves a visible living braid.
+        const p3x = center.x + 0.46 * embraceLen * tx + sign * 0.95 * nx;
+        const p3y = center.y + 0.46 * embraceLen * ty + sign * 0.95 * ny;
+        const p2x = p3x - 0.74 * embraceLen * tx + sign * 2.8 * nx;
+        const p2y = p3y - 0.74 * embraceLen * ty + sign * 2.8 * ny;
+        const p1x = origin.x + (center.x - origin.x) * 0.72;
+        const p1y = origin.y + (center.y - origin.y) * 0.46 + arch * Math.min(h * 0.13, span * 0.11);
+        const spine = bezierToQuintic(origin.x, origin.y, p1x, p1y, p2x, p2y, p3x, p3y);
+        const phi0 = Math.atan2(p1y - origin.y, p1x - origin.x);
+        const phi1 = unwrapNear(phiEnd, phi0);
         return {
           from,
           rgb: isSky ? INK_SKY : INK_STONE,
-          side,
+          sheet: isSky ? wetA : wetB,
+          orient: isSky ? side : -side,
+          spine,
+          phiSeg: { p0: phi0, v0: 0, a0: 0, p1: phi1, v1: 0, a1: 0 },
           n1: noise(seed),
           n2: noise(seed + 17),
           n3: noise(seed + 41),
-          // Sky pole carries finer wave loops; stone pole carries steadier structural arcs.
-          loopsPerPx: isSky ? 1 / (48 + Math.random() * 24) : 1 / (68 + Math.random() * 30),
-          ampScale: isSky ? 1.05 : 0.84,
+          loopsPerPx: isSky ? 1 / (50 + (seed % 22)) : 1 / (70 + (seed % 26)),
+          ampScale: isSky ? 1.04 : 0.84,
+          arc: 0,
+          lastBx: origin.x,
+          lastBy: origin.y,
+          w: 1.8,
           points: [],
           inked: 0
         };
       }
 
-      function newLine() {
+      function createLineFromSeed(seed, initialLocus, guest, linkedProposal) {
+        const rnd = seededRand(seed);
         const narrow = w < 721;
-        const locus = {
-          u: 0.34 + Math.random() * 0.32,
-          v: narrow ? 0.02 + Math.random() * 0.12 : -0.14 + Math.random() * 0.22
+        const locus = initialLocus || {
+          u: 0.32 + rnd() * 0.36,
+          v: narrow ? -0.04 + rnd() * 0.17 : -0.15 + rnd() * 0.24
         };
-        const side = narrow || Math.random() < 0.55 ? 1 : -1;
-        const tilt = (Math.random() - 0.5) * 0.68;
-        const flow = narrow ? 1 : (Math.random() < 0.62 ? 1 : -1);
-        const arch = narrow ? 0.15 + Math.random() * 0.42 : (Math.random() - 0.45) * 0.9;
-        const bow = (Math.random() - 0.5) * 1.1;
-        const line = {
-          locus,
-          tilt,
-          flow,
-          arch,
-          bow,
-          pens: [newPen("a", side), newPen("b", side)],
-          t: 0,
-          duration: 7200 + Math.random() * 2200,
-          guest: false
+        const center = place(locus);
+        const flow = center.y < h * 0.24 ? -1 : 1;
+        const tilt = (rnd() - 0.5) * 0.52;
+        const side = narrow || rnd() < 0.55 ? 1 : -1;
+        const arch = narrow ? 0.1 + rnd() * 0.34 : (rnd() - 0.45) * 0.76;
+        const spec = embraceSpec(center, tilt, flow);
+        const omega = (1.85 + rnd() * 0.35) * Math.PI;
+        const endAngle = (rnd() < 0.5 ? 1 : -1) * (0.36 + rnd() * 0.18);
+        const theta0 = endAngle - omega;
+
+        return {
+          seed,
+          locus: { u: locus.u, v: locus.v },
+          tau: 0,
+          elapsed: 0,
+          duration: 7400 + rnd() * 1900,
+          mode: "cosine",
+          m0: 0,
+          theta0,
+          omega,
+          useInitialEnv: true,
+          indivSeg: null,
+          braidSeg: null,
+          reopenBoost: 0,
+          noiseS0: 0,
+          noiseScale: 1,
+          botanical: buildBotanical(seed + 91),
+          pens: [
+            makeInitialPen("a", seed + 11, spec, arch, side),
+            makeInitialPen("b", seed + 53, spec, arch, side)
+          ],
+          redirects: [],
+          guest: Boolean(guest),
+          proposal: linkedProposal || null
         };
-        if (proposal) accept(line);
-        return line;
       }
 
-      function accept(line) {
-        line.goal = { u: proposal.u, v: proposal.v };
-        line.guest = true;
-        line.proposal = proposal;
+      function newLine() {
+        const seed = Math.floor(Math.random() * 900000) + 1000;
+        const useProp = Boolean(proposal);
+        const initLocus = useProp ? { u: proposal.u, v: proposal.v } : null;
+        return createLineFromSeed(seed, initLocus, useProp, proposal);
       }
 
-      function channelFrame(line) {
-        const center = place(line.locus);
-        const span = Math.max(180, b.x - a.x);
-        const halfGap = gapHalfWidth();
-        const arcLen = Math.min(h * 0.23, span * 0.19, 148);
-        // Unit normal N always points from left shore (A) to right shore (B): cos(tilt) > 0.
-        const nx = Math.cos(line.tilt);
-        const ny = -Math.sin(line.tilt);
-        const tx = Math.sin(line.tilt) * line.flow;
-        const ty = Math.cos(line.tilt) * line.flow;
-        return { center, span, halfGap, arcLen, nx, ny, tx, ty };
-      }
-
-      function penAt(line, pen, t) {
-        const origin = pen.from === "a" ? a : b;
-        const sign = pen.from === "a" ? -1 : 1;
-        const { center, span, halfGap, arcLen, nx, ny, tx, ty } = channelFrame(line);
-
-        let breathGap = halfGap;
-        if (presence.strength > 0.001 && !still) {
-          const dCenter = Math.hypot(center.x - presence.x, center.y - presence.y);
-          const halo = Math.max(90, span * 0.18);
-          breathGap += 3.2 * presence.strength * Math.exp(-(dCenter * dCenter) / (halo * halo));
+      function envelopesAt(line, s) {
+        if (line.useInitialEnv) {
+          const sm = smoothstep(0.42, 0.78, s);
+          const dsm = dSmoothstep(0.42, 0.78, s);
+          const sn = Math.sin(Math.PI * s);
+          const csn = Math.PI * Math.cos(Math.PI * s);
+          return {
+            indiv: sn * (1 - sm),
+            dIndiv: csn * (1 - sm) - sn * dsm,
+            braid: smoothstep(0.54, 0.99, s),
+            dBraid: dSmoothstep(0.54, 0.99, s)
+          };
         }
-
-        // Terminal shore point P3 and channel-entry control point P2 guide both curves along a shared resonant arc.
-        const p3x = center.x + sign * breathGap * nx + 0.52 * arcLen * tx;
-        const p3y = center.y + sign * breathGap * ny + 0.52 * arcLen * ty;
-        const p2x = center.x + sign * (breathGap * 1.22) * nx - 0.62 * arcLen * tx;
-        const p2y = center.y + sign * (breathGap * 1.22) * ny - 0.62 * arcLen * ty;
-        const p1x = origin.x + (center.x - origin.x) * 0.42;
-        const p1y = origin.y + (center.y - origin.y) * 0.32 + line.arch * Math.min(h * 0.14, span * 0.13);
-
-        const s = 0.5 - 0.5 * Math.cos(Math.PI * t);
+        const qi = evalQuintic1D(line.indivSeg, s);
+        const qb = evalQuintic1D(line.braidSeg, s);
         const u = 1 - s;
-        let bx = u * u * u * origin.x + 3 * u * u * s * p1x + 3 * u * s * s * p2x + s * s * s * p3x;
-        let by = u * u * u * origin.y + 3 * u * u * s * p1y + 3 * u * s * s * p2y + s * s * s * p3y;
-
-        // Shared curvature along the resonance channel: both shores bend together, preserving their gap.
-        const inChannel = smoothstep(0.6, 1.0, s);
-        const sharedBow = line.bow * Math.sin(Math.PI * inChannel) * breathGap * 0.65;
-        bx += sharedBow * nx;
-        by += sharedBow * ny;
-
-        // Spine tangent for local cycloid orientation.
-        const dxs = 3 * u * u * (p1x - origin.x) + 6 * u * s * (p2x - p1x) + 3 * s * s * (p3x - p2x);
-        const dys = 3 * u * u * (p1y - origin.y) + 6 * u * s * (p2y - p1y) + 3 * s * s * (p3y - p2y);
-        const dLen = Math.hypot(dxs, dys) || 1;
-        const ux = dxs / dLen, uy = dys / dLen;
-        let vx = -uy, vy = ux;
-        if (vy < 0) { vx = -vx; vy = -vy; }
-        vx *= pen.side;
-        vy *= pen.side;
-
-        const approxLength = Math.hypot(p3x - origin.x, p3y - origin.y) || 1;
-        const phase = s * approxLength * pen.loopsPerPx * Math.PI * 2;
-        const calm = 1 - 0.9 * smoothstep(0.54, 0.86, s);
-        const env = Math.sin(Math.PI * s) * calm;
-        const amp = Math.pow(pen.n1(s * 5), 1.55) * Math.min(h * 0.072, approxLength * 0.13, 50) * pen.ampScale;
-        const drift = (pen.n2(s * 3) - 0.5) * Math.min(h * 0.13, approxLength * 0.28) * calm;
-        const lean = (pen.n3(s * 5) - 0.5) * 0.55;
-
-        const along = env * amp * (lean - 0.88 * Math.sin(phase));
-        const across = env * (drift + amp * (1 - Math.cos(phase)));
-        let x = bx + ux * along + vx * across;
-        let y = by + uy * along + vy * across;
-
-        if (presence.strength > 0.001 && !still) {
-          const px = x - presence.x, py = y - presence.y;
-          const reach = Math.min(120, Math.max(60, w * 0.09));
-          const free = 1 - 0.78 * smoothstep(0.62, 0.9, s);
-          const swell = Math.sin(Math.PI * s) * free * presence.strength * 0.5 * Math.exp(-(px * px + py * py) / (reach * reach));
-          x += px * swell;
-          y += py * swell;
-        }
-        return { x, y };
+        const bell = 64 * s * s * s * u * u * u;
+        const dbell = 192 * s * s * u * u * (1 - 2 * s);
+        const boost = line.reopenBoost;
+        return {
+          indiv: qi.v + boost * bell,
+          dIndiv: qi.dv + boost * dbell,
+          braid: qb.v,
+          dBraid: qb.dv
+        };
       }
 
-      function advance(line, upto) {
-        const from = line.t;
-        const steps = Math.max(1, Math.ceil((upto - from) * DRAW_STEPS));
-        for (let i = 1; i <= steps; i++) {
-          const t = from + (upto - from) * i / steps;
-          line.pens.forEach(pen => pen.points.push(penAt(line, pen, t)));
+      function presenceFieldOffset(x, y, freeWeight) {
+        if (still || freeWeight <= 0.001) return { dx: 0, dy: 0 };
+        const reach = Math.min(120, Math.max(60, w * 0.09));
+        const r2 = reach * reach;
+        let ox = 0, oy = 0;
+        if (presence.strength > 0.001) {
+          const px = x - presence.x, py = y - presence.y;
+          const k = freeWeight * presence.strength * 0.42 * Math.exp(-(px * px + py * py) / r2);
+          ox += px * k;
+          oy += py * k;
         }
-        line.t = upto;
+        for (let i = 0; i < ghostPresences.length; i++) {
+          const g = ghostPresences[i];
+          const px = x - g.x, py = y - g.y;
+          const k = freeWeight * g.strength * 0.42 * Math.exp(-(px * px + py * py) / r2);
+          ox += px * k;
+          oy += py * k;
+        }
+        return { dx: ox, dy: oy };
+      }
+
+      function evalPenAt(line, pen, s, commitArc) {
+        const span = Math.max(180, b.x - a.x);
+        const q = evalQuintic2D(pen.spine, s);
+        const phiQ = evalQuintic1D(pen.phiSeg, s);
+        const ux = Math.cos(phiQ.v), uy = Math.sin(phiQ.v);
+        const arc = pen.arc + Math.hypot(q.x - pen.lastBx, q.y - pen.lastBy);
+        if (commitArc) {
+          pen.arc = arc;
+          pen.lastBx = q.x;
+          pen.lastBy = q.y;
+        }
+        const nrx = -uy, nry = ux;
+        const vx = nrx * pen.orient, vy = nry * pen.orient;
+
+        const { indiv, braid } = envelopesAt(line, s);
+        const ns = line.noiseS0 + s * line.noiseScale;
+        const phase = arc * pen.loopsPerPx * Math.PI * 2;
+        const amp = Math.pow(pen.n1(ns * 5), 1.55) * Math.min(h * 0.068, span * 0.044, 46) * pen.ampScale;
+        const drift = (pen.n2(ns * 3) - 0.5) * Math.min(h * 0.11, span * 0.085);
+        const lean = (pen.n3(ns * 5) - 0.5) * 0.52;
+
+        const alongIndiv = indiv * amp * (lean - 0.88 * Math.sin(phase));
+        const acrossIndiv = indiv * (drift + amp * (1 - Math.cos(phase)));
+
+        // Orbital embrace: two strands weave intimately (grazing at ~4.5px, cradling the hearth at ~6px) without fusing.
+        const sign = pen.from === "a" ? -1 : 1;
+        const bClamp = Math.max(0, Math.min(1, braid));
+        const theta = line.theta0 + line.omega * bClamp;
+        const rPerp = 6.2 - 3.1 * smoothstep(0.55, 1.0, bClamp);
+        const rPar = 2.8;
+        const braidAlong = sign * bClamp * rPar * Math.sin(theta);
+        const braidNormal = sign * bClamp * rPerp * Math.cos(theta);
+
+        let x = q.x + ux * (alongIndiv + braidAlong) + vx * acrossIndiv + nrx * braidNormal;
+        let y = q.y + uy * (alongIndiv + braidAlong) + vy * acrossIndiv + nry * braidNormal;
+
+        const freeWeight = Math.max(0, indiv);
+        if (freeWeight > 0.002) {
+          const pf = presenceFieldOffset(x, y, freeWeight);
+          x += pf.dx;
+          y += pf.dy;
+        }
+        return { x, y, braid: bClamp };
+      }
+
+      // Inflects both in-flight pens toward `targetRel` with exact C1 screen-space continuity (zero position or velocity jump).
+      function applyRedirect(line, targetRel, linkedProposal, recordEvent) {
+        const tp = evalTimeProfile(line.mode, line.m0, line.tau);
+        const sCur = tp.s;
+        const dsDt = tp.ds / line.duration;
+        line.pens.forEach(pen => evalPenAt(line, pen, sCur, true));
+
+        const clickCenter = place(targetRel);
+        const midCur = {
+          x: (line.pens[0].lastBx + line.pens[1].lastBx) * 0.5,
+          y: (line.pens[0].lastBy + line.pens[1].lastBy) * 0.5
+        };
+        const qA0 = evalQuintic2D(line.pens[0].spine, sCur);
+        const qB0 = evalQuintic2D(line.pens[1].spine, sCur);
+        const qSpeed = Math.max(60, Math.hypot(qA0.dx, qA0.dy), Math.hypot(qB0.dx, qB0.dy));
+        const span = Math.max(180, b.x - a.x);
+        const dist = Math.hypot(clickCenter.x - midCur.x, clickCenter.y - midCur.y);
+        const desiredV0 = Math.min(540, 1.22 * Math.max(105, dist));
+        let kappa = Math.max(0.18, desiredV0 / qSpeed);
+        let newDur = Math.max(3200, Math.min(6400, 3200 + dist * 3.1));
+        if (dsDt > 1e-5) {
+          newDur = Math.max(2200, Math.min(newDur, (2.65 * kappa) / dsDt));
+          if (dsDt * newDur > 2.82 * kappa) {
+            kappa = (dsDt * newDur) / 2.82;
+          }
+        }
+        const m0New = (dsDt * newDur) / kappa;
+
+        const flowNew = clickCenter.y < h * 0.24 ? -1 : 1;
+        const tiltNew = Math.max(-0.48, Math.min(0.48, (clickCenter.x - midCur.x) / (span * 0.85)));
+        const baseSpec = embraceSpec(clickCenter, tiltNew, flowNew);
+        // Align redirected embrace orientation smoothly with the approach vector so pens never hook beneath the target.
+        const appX = clickCenter.x - midCur.x, appY = clickCenter.y - midCur.y;
+        const appLen = Math.hypot(appX, appY);
+        let phiRedirect = baseSpec.phiEnd;
+        if (appLen > 36) {
+          const appPhi = Math.atan2(appY, appX);
+          const diff = unwrapNear(baseSpec.phiEnd, appPhi) - appPhi;
+          phiRedirect = appPhi + Math.max(-0.85, Math.min(0.85, diff * 0.55));
+        }
+        const rTx = Math.cos(phiRedirect), rTy = Math.sin(phiRedirect);
+        const rNx = -rTy, rNy = rTx;
+        const redirectStem = Math.min(baseSpec.embraceLen * 0.78, Math.max(54, dist * 0.38));
+        const envCur = envelopesAt(line, sCur);
+
+        line.pens.forEach(pen => {
+          const q = evalQuintic2D(pen.spine, sCur);
+          const phiQ = evalQuintic1D(pen.phiSeg, sCur);
+          const sign = pen.from === "a" ? -1 : 1;
+          const p3x = clickCenter.x + 0.32 * redirectStem * rTx + sign * 0.95 * rNx;
+          const p3y = clickCenter.y + 0.32 * redirectStem * rTy + sign * 0.95 * rNy;
+          const v0x = q.dx * kappa, v0y = q.dy * kappa;
+          const v0Len = Math.hypot(v0x, v0y) || 1;
+          const dxT = p3x - q.x, dyT = p3y - q.y;
+          const dTarget = Math.hypot(dxT, dyT) || 1;
+          const cross = (v0x * dyT - v0y * dxT) / v0Len;
+          const dotP = (v0x * dxT + v0y * dyT) / v0Len;
+          const dampA = 0.12 * Math.min(1.0, kappa * kappa);
+          const a0x = q.d2x * dampA, a0y = q.d2y * dampA;
+          let bowX = 0, bowY = 0;
+          const cosTurn = dotP / dTarget;
+          if (cosTurn < 0.35) {
+            const turnFactor = (0.35 - cosTurn) / 1.35;
+            const bankSign = Math.abs(cross) > 8 ? (cross >= 0 ? 1 : -1) : sign;
+            const bowMag = turnFactor * Math.min(58, Math.max(24, dTarget * 0.22));
+            bowX = bankSign * (-v0y / v0Len) * bowMag;
+            bowY = bankSign * (v0x / v0Len) * bowMag;
+          }
+          const v1Mag = Math.min(1.35 * redirectStem, Math.max(64, dTarget * 0.72));
+          pen.spine = {
+            p0x: q.x, p0y: q.y,
+            v0x, v0y,
+            a0x, a0y,
+            p1x: p3x, p1y: p3y,
+            v1x: v1Mag * rTx, v1y: v1Mag * rTy,
+            a1x: 0, a1y: 0,
+            bowX, bowY
+          };
+          const phi1 = unwrapNear(phiRedirect, phiQ.v);
+          pen.phiSeg = {
+            p0: phiQ.v, v0: phiQ.dv * kappa, a0: phiQ.d2v * dampA,
+            p1: phi1, v1: 0, a1: 0
+          };
+        });
+
+        line.indivSeg = { p0: envCur.indiv, v0: envCur.dIndiv * kappa, a0: 0, p1: 0, v1: 0, a1: 0 };
+        line.braidSeg = { p0: envCur.braid, v0: envCur.dBraid * kappa, a0: 0, p1: 1, v1: 0, a1: 0 };
+        line.useInitialEnv = false;
+        line.reopenBoost = Math.max(0, 0.26 - envCur.indiv) * Math.min(1, dist / 340);
+        line.noiseS0 = line.noiseS0 + sCur * line.noiseScale;
+        line.noiseScale = line.noiseScale * kappa;
+        line.locus = { u: targetRel.u, v: targetRel.v };
+        line.tau = 0;
+        line.duration = newDur;
+        line.mode = "cubic";
+        line.m0 = m0New;
+        line.guest = true;
+        if (linkedProposal) line.proposal = linkedProposal;
+        if (recordEvent) {
+          line.redirects.push({ atElapsed: line.elapsed, u: targetRel.u, v: targetRel.v });
+        }
+      }
+
+      function initLinePoints(line) {
+        line.pens.forEach(pen => {
+          const p0 = evalPenAt(line, pen, 0, true);
+          pen.w = 1.85;
+          pen.points = [{ x: p0.x, y: p0.y, w: 1.85, braid: p0.braid }];
+          pen.inked = 0;
+        });
+      }
+
+      function stepLineBy(line, dtMs) {
+        if (dtMs <= 0 || line.tau >= 1) return;
+        const fromTau = line.tau;
+        const toTau = Math.min(1, fromTau + dtMs / line.duration);
+        const actualDt = (toTau - fromTau) * line.duration;
+        const steps = Math.max(1, Math.ceil((toTau - fromTau) * SAMPLE_STEPS));
+        const subDt = Math.max(0.4, actualDt / steps);
+
+        for (let i = 1; i <= steps; i++) {
+          const tau = fromTau + (toTau - fromTau) * (i / steps);
+          const s = evalTimeProfile(line.mode, line.m0, tau).s;
+          line.pens.forEach(pen => {
+            const pt = evalPenAt(line, pen, s, true);
+            const prev = pen.points[pen.points.length - 1];
+            const dist = Math.hypot(pt.x - prev.x, pt.y - prev.y);
+            const vPxMs = dist / subDt;
+            const targetW = Math.max(0.95, Math.min(2.2, 2.18 - vPxMs * 3.8));
+            pen.w += (targetW - pen.w) * 0.16;
+            pen.points.push({ x: pt.x, y: pt.y, w: pen.w, braid: pt.braid });
+          });
+        }
+        line.tau = toTau;
+        line.elapsed += actualDt;
       }
 
       function rebuild(line) {
-        const upto = line.t;
-        line.pens.forEach(pen => {
-          pen.points = [penAt(line, pen, 0)];
-          pen.inked = 0;
-        });
-        line.t = 0;
-        if (upto > 0) advance(line, upto);
+        const targetElapsed = line.elapsed;
+        const savedRedirects = line.redirects.slice();
+        const savedGuest = line.guest;
+        const savedProposal = line.proposal;
+        const fresh = createLineFromSeed(
+          line.seed,
+          savedRedirects.length ? null : line.locus,
+          savedGuest,
+          savedProposal
+        );
+        Object.assign(line, fresh);
+        line.guest = savedGuest;
+        line.proposal = savedProposal;
+        line.redirects = savedRedirects;
+        initLinePoints(line);
+        wetA.clearRect(0, 0, w, h);
+        wetB.clearRect(0, 0, w, h);
+
+        let curElapsed = 0;
+        for (let r = 0; r < savedRedirects.length; r++) {
+          const ev = savedRedirects[r];
+          while (curElapsed + 0.01 < Math.min(targetElapsed, ev.atElapsed) && line.tau < 1) {
+            const chunk = Math.min(16, Math.min(targetElapsed, ev.atElapsed) - curElapsed);
+            stepLineBy(line, chunk);
+            curElapsed += chunk;
+          }
+          if (targetElapsed >= ev.atElapsed && line.tau < 0.999) {
+            applyRedirect(line, { u: ev.u, v: ev.v }, savedProposal, false);
+          }
+        }
+        while (curElapsed + 0.01 < targetElapsed && line.tau < 1) {
+          const chunk = Math.min(16, targetElapsed - curElapsed);
+          stepLineBy(line, chunk);
+          curElapsed += chunk;
+        }
       }
 
-      function stroke(c, points, rgb, alpha, from = 1) {
+      // Strokes opaque ink onto an offscreen sheet so overlapping round caps never bead.
+      function strokeOpaque(c, points, rgb, from = 1) {
         if (points.length < 2) return;
         c.lineCap = "round";
         c.lineJoin = "round";
-        c.strokeStyle = `rgba(${rgb}, ${alpha})`;
+        c.strokeStyle = `rgb(${rgb})`;
         for (let i = Math.max(1, from); i < points.length; i++) {
           const p = points[i - 1], q = points[i];
-          const speed = Math.hypot(q.x - p.x, q.y - p.y);
-          c.lineWidth = Math.max(0.62, 2.25 - speed * 0.22);
+          c.lineWidth = q.w;
           c.beginPath();
           c.moveTo(p.x, p.y);
           c.lineTo(q.x, q.y);
@@ -934,72 +1310,206 @@
         }
       }
 
-      // Subtle standing glow & harmonic filaments inside the open interstice of a settled or active pair.
-      function paintInterstice(c, line, intensity, nowPhase) {
+      function compositePen(dest, points, rgb, alpha) {
+        if (points.length < 2 || alpha <= 0.002) return;
+        scratch.clearRect(0, 0, w, h);
+        strokeOpaque(scratch, points, rgb, 1);
+        dest.save();
+        dest.globalAlpha = alpha;
+        dest.drawImage(scratch.canvas, 0, 0, w, h);
+        dest.restore();
+      }
+
+      // Collects the embrace spine samples where the two strands weave closely together.
+      function embraceSamples(line) {
         const ptsA = line.pens[0].points;
         const ptsB = line.pens[1].points;
         const count = Math.min(ptsA.length, ptsB.length);
-        const startIdx = Math.floor(DRAW_STEPS * 0.72);
-        if (count <= startIdx + 6 || intensity <= 0.004) return;
+        if (count < 8) return null;
+        let startIdx = -1;
+        for (let i = 0; i < count; i++) {
+          if (ptsA[i].braid >= 0.24) {
+            startIdx = i;
+            break;
+          }
+        }
+        if (startIdx < 0 || count - startIdx < 5) return null;
+        return { ptsA, ptsB, startIdx, endIdx: count - 1 };
+      }
 
-        const midIdx = Math.min(count - 1, Math.floor((startIdx + count - 1) * 0.56));
-        const mA = ptsA[midIdx], mB = ptsB[midIdx];
-        const mx = (mA.x + mB.x) * 0.5;
-        const my = (mA.y + mB.y) * 0.5;
-        const radius = Math.max(26, Math.hypot(mB.x - mA.x, mB.y - mA.y) * 1.65);
+      // Renders the living third presence born of their close encounter:
+      // warm golden-ivory hearth, woven silk chords across the braid, botanical shoots, and luminous seeds.
+      function paintNous(c, line, intensity, growth, nowPhase, settledMode) {
+        if (intensity <= 0.004 || growth <= 0.01) return;
+        const emb = embraceSamples(line);
+        if (!emb) return;
+        const { ptsA, ptsB, startIdx, endIdx } = emb;
+        const spanIdx = Math.max(1, endIdx - startIdx);
 
-        const grad = c.createRadialGradient(mx, my, 1, mx, my, radius);
-        const tint = line.guest ? INK_GUEST : "232, 224, 214";
-        grad.addColorStop(0, `rgba(${tint}, ${(0.15 * intensity).toFixed(4)})`);
-        grad.addColorStop(0.55, `rgba(${INK_SKY}, ${(0.055 * intensity).toFixed(4)})`);
-        grad.addColorStop(1, "rgba(14, 47, 87, 0)");
-        c.fillStyle = grad;
+        const sampleAt = frac => {
+          const idx = Math.min(endIdx, Math.max(startIdx, Math.round(startIdx + frac * spanIdx)));
+          const prevIdx = Math.max(0, idx - 3);
+          const pA = ptsA[idx], pB = ptsB[idx];
+          const pA0 = ptsA[prevIdx], pB0 = ptsB[prevIdx];
+          const mx = (pA.x + pB.x) * 0.5, my = (pA.y + pB.y) * 0.5;
+          const mx0 = (pA0.x + pB0.x) * 0.5, my0 = (pA0.y + pB0.y) * 0.5;
+          let tx = mx - mx0, ty = my - my0;
+          const tLen = Math.hypot(tx, ty) || 1;
+          tx /= tLen;
+          ty /= tLen;
+          return { pA, pB, mx, my, tx, ty, nx: -ty, ny: tx };
+        };
+
+        const heart = sampleAt(Math.min(1, 0.56 * growth + 0.18));
+        const crown = sampleAt(1);
+        const breath = settledMode ? 1 : (0.9 + 0.1 * Math.sin(nowPhase * 0.0028));
+
+        // 1. Warm golden-ivory breathing hearth enveloping the embrace and crown.
+        const outerR = (38 + 16 * growth) * breath;
+        const gradHearth = c.createRadialGradient(heart.mx, heart.my, 0.5, heart.mx, heart.my, outerR);
+        gradHearth.addColorStop(0, `rgba(${INK_GOLD_BRIGHT}, ${(0.28 * intensity).toFixed(4)})`);
+        gradHearth.addColorStop(0.32, `rgba(${INK_GOLD_WARM}, ${(0.15 * intensity).toFixed(4)})`);
+        gradHearth.addColorStop(0.68, `rgba(${INK_SKY}, ${(0.05 * intensity).toFixed(4)})`);
+        gradHearth.addColorStop(1, "rgba(14, 47, 87, 0)");
+        c.fillStyle = gradHearth;
         c.beginPath();
-        c.arc(mx, my, radius, 0, Math.PI * 2);
+        c.arc(heart.mx, heart.my, outerR, 0, Math.PI * 2);
         c.fill();
 
-        // Delicate transverse harmonic filaments vibrating inside the gap without bridging the shores into one.
-        const chords = 6;
+        const crownR = (22 + 12 * growth) * breath;
+        const gradCrown = c.createRadialGradient(crown.mx, crown.my, 0.5, crown.mx, crown.my, crownR);
+        gradCrown.addColorStop(0, `rgba(${INK_GOLD_BRIGHT}, ${(0.38 * intensity * growth).toFixed(4)})`);
+        gradCrown.addColorStop(0.4, `rgba(${INK_GOLD_WARM}, ${(0.18 * intensity * growth).toFixed(4)})`);
+        gradCrown.addColorStop(1, "rgba(14, 47, 87, 0)");
+        c.fillStyle = gradCrown;
+        c.beginPath();
+        c.arc(crown.mx, crown.my, crownR, 0, Math.PI * 2);
+        c.fill();
+
+        // 2. Woven golden-ivory silk filaments circulating across the close graze.
+        const chords = 9;
         c.lineCap = "round";
         for (let k = 0; k < chords; k++) {
           const frac = (k + 0.5) / chords;
-          const idx = Math.floor(startIdx + frac * (DRAW_STEPS - startIdx));
-          if (idx >= count) break;
-          const pA = ptsA[idx], pB = ptsB[idx];
-          const dx = pB.x - pA.x, dy = pB.y - pA.y;
-          const pulse = 0.55 + 0.45 * Math.sin(nowPhase * 0.0032 + k * 1.15);
-          const bell = Math.sin(Math.PI * frac);
-          const alpha = intensity * bell * pulse * 0.34;
+          if (frac > growth) break;
+          const smp = sampleAt(frac);
+          const dx = smp.pB.x - smp.pA.x, dy = smp.pB.y - smp.pA.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 24) continue;
+          const pulse = settledMode ? 0.8 : (0.65 + 0.35 * Math.sin(nowPhase * 0.0036 + k * 0.95));
+          const bell = Math.sin(Math.PI * Math.min(1, frac / Math.max(0.2, growth)));
+          const alpha = intensity * (0.2 + 0.32 * bell) * pulse;
           if (alpha <= 0.01) continue;
-          // Inset 18% from each shore so the filament floats inside the interstice rather than welding the lines.
-          const x1 = pA.x + dx * 0.18, y1 = pA.y + dy * 0.18;
-          const x2 = pA.x + dx * 0.82, y2 = pA.y + dy * 0.82;
-          const sway = Math.sin(nowPhase * 0.004 + k * 1.7) * 2.2;
-          const cx = (x1 + x2) * 0.5 - (dy / (Math.hypot(dx, dy) || 1)) * sway;
-          const cy = (y1 + y2) * 0.5 + (dx / (Math.hypot(dx, dy) || 1)) * sway;
-          c.strokeStyle = `rgba(238, 241, 236, ${alpha.toFixed(4)})`;
-          c.lineWidth = 0.65;
+          const sway = (settledMode ? 1 : Math.sin(nowPhase * 0.003 + k * 1.4)) * 2.4;
+          const cx = smp.mx + smp.tx * sway;
+          const cy = smp.my + smp.ty * sway;
+          c.strokeStyle = `rgba(${INK_GOLD_BRIGHT}, ${alpha.toFixed(4)})`;
+          c.lineWidth = 0.68;
           c.beginPath();
-          c.moveTo(x1, y1);
-          c.quadraticCurveTo(cx, cy, x2, y2);
+          c.moveTo(smp.pA.x + dx * 0.1, smp.pA.y + dy * 0.1);
+          c.quadraticCurveTo(cx, cy, smp.pA.x + dx * 0.9, smp.pA.y + dy * 0.9);
           c.stroke();
         }
+
+        // 3. Organic botanical shoots (nervures) budding outward from the shared embrace.
+        const { shoots, spores } = line.botanical;
+        for (let k = 0; k < shoots.length; k++) {
+          const sh = shoots[k];
+          const bud = smoothstep(sh.trigger, sh.trigger + 0.26, growth);
+          if (bud <= 0.01) continue;
+          const smp = sampleAt(Math.min(1, sh.frac));
+          const baseAng = Math.atan2(smp.ty, smp.tx);
+          const sway = settledMode ? 0 : Math.sin(nowPhase * 0.0022 + k * 1.7) * 0.045;
+          const ang1 = baseAng + sh.angle + sway;
+          const ang2 = ang1 + sh.curl;
+          const len = sh.len * bud;
+          const p0x = smp.mx, p0y = smp.my;
+          const p1x = p0x + Math.cos(ang1) * len * 0.54;
+          const p1y = p0y + Math.sin(ang1) * len * 0.54;
+          const p2x = p0x + Math.cos(ang1) * len * 0.52 + Math.cos(ang2) * len * 0.52;
+          const p2y = p0y + Math.sin(ang1) * len * 0.52 + Math.sin(ang2) * len * 0.52;
+
+          const rgbShoot = sh.warm ? INK_GOLD_WARM : INK_SEL;
+          const shootAlpha = intensity * bud * (settledMode ? 0.42 : 0.64);
+          const segs = 4;
+          let lx = p0x, ly = p0y;
+          for (let j = 1; j <= segs; j++) {
+            const u = j / segs, inv = 1 - u;
+            const nx = inv * inv * p0x + 2 * inv * u * p1x + u * u * p2x;
+            const ny = inv * inv * p0y + 2 * inv * u * p1y + u * u * p2y;
+            c.strokeStyle = `rgba(${rgbShoot}, ${(shootAlpha * (1 - 0.28 * u)).toFixed(4)})`;
+            c.lineWidth = 0.92 - 0.54 * u;
+            c.beginPath();
+            c.moveTo(lx, ly);
+            c.lineTo(nx, ny);
+            c.stroke();
+            lx = nx;
+            ly = ny;
+          }
+
+          const pearlR = sh.pearl * (0.65 + 0.35 * bud);
+          const haloR = pearlR * 3.8;
+          const pg = c.createRadialGradient(p2x, p2y, 0, p2x, p2y, haloR);
+          pg.addColorStop(0, `rgba(${INK_GOLD_BRIGHT}, ${(0.42 * intensity * bud).toFixed(4)})`);
+          pg.addColorStop(1, "rgba(14, 47, 87, 0)");
+          c.fillStyle = pg;
+          c.beginPath();
+          c.arc(p2x, p2y, haloR, 0, Math.PI * 2);
+          c.fill();
+
+          c.fillStyle = `rgba(${INK_GOLD_BRIGHT}, ${(0.78 * intensity * bud).toFixed(4)})`;
+          c.beginPath();
+          c.arc(p2x, p2y, pearlR, 0, Math.PI * 2);
+          c.fill();
+        }
+
+        // 4. Luminous pollen / seed spores floating around the foyer.
+        for (let k = 0; k < spores.length; k++) {
+          const sp = spores[k];
+          const bud = smoothstep(sp.trigger, sp.trigger + 0.24, growth);
+          if (bud <= 0.01) continue;
+          const smp = sampleAt(Math.min(1, sp.frac));
+          const drift = settledMode ? 0 : Math.sin(nowPhase * 0.0024 + sp.phase) * 1.4;
+          const sx = smp.mx + sp.ox * (0.45 + 0.55 * bud) + smp.nx * drift;
+          const sy = smp.my + sp.oy * (0.45 + 0.55 * bud) + smp.ny * drift;
+          const twinkle = settledMode ? 0.75 : (0.68 + 0.32 * Math.sin(nowPhase * 0.0034 + sp.phase));
+          const alpha = intensity * bud * twinkle * (settledMode ? 0.45 : 0.72);
+          const rgb = sp.gold ? INK_GOLD_BRIGHT : INK_SEL;
+          c.fillStyle = `rgba(${rgb}, ${alpha.toFixed(4)})`;
+          c.beginPath();
+          c.arc(sx, sy, sp.r, 0, Math.PI * 2);
+          c.fill();
+        }
+
+        // 5. Shared golden-ivory seed uniting the crown between the two distinct resting shores.
+        if (growth > 0.72) {
+          const seedK = smoothstep(0.72, 1.0, growth);
+          c.fillStyle = `rgba(${INK_GOLD_BRIGHT}, ${(0.84 * intensity * seedK).toFixed(4)})`;
+          c.beginPath();
+          c.arc(crown.mx, crown.my, 1.85 * seedK * breath, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+
+      function paintSettledPairBuffer(line) {
+        settledPair.clearRect(0, 0, w, h);
+        line.pens.forEach(pen => compositePen(settledPair, pen.points, pen.rgb, 1.0));
       }
 
       function paintDry() {
         dry.clearRect(0, 0, w, h);
         exposures.forEach((line, i) => {
           if (resonance && i === exposures.length - 1) return;
-          const base = 0.085 + 0.085 * i;
-          paintInterstice(dry, line, base * 1.4, i * 400);
-          line.pens.forEach(pen => stroke(dry, pen.points, pen.rgb, base));
+          const base = 0.09 + 0.085 * i;
+          paintNous(dry, line, Math.min(0.55, base * 1.65), 1, i * 400, true);
+          line.pens.forEach(pen => compositePen(dry, pen.points, pen.rgb, base));
         });
         dryValid = true;
       }
 
       function inkWet() {
         current.pens.forEach(pen => {
-          stroke(wet, pen.points, pen.rgb, 0.88, pen.inked);
+          strokeOpaque(pen.sheet, pen.points, pen.rgb, pen.inked);
           pen.inked = pen.points.length;
         });
       }
@@ -1011,21 +1521,33 @@
         ctx.fill();
       }
 
-      // Each past encounter stays on the two shores themselves, preserving its open gap.
+      // Past encounters remain as fertile twinned seeds: two intimate nuclei united by a shared golden heart.
       function drawMarks() {
         marks.forEach((m, i) => {
-          const recent = i >= marks.length - 3;
-          const pa = place({ u: m.au, v: m.av });
-          const pb = place({ u: m.bu, v: m.bv });
-          const r = recent ? 1.9 : 1.45;
-          const alpha = recent ? 0.52 : 0.26;
-          if (m.guest) {
-            dot(pa, INK_GUEST, r, alpha + 0.14);
-            dot(pb, INK_GUEST, r, alpha + 0.14);
-          } else {
-            dot(pa, INK_SKY, r, alpha);
-            dot(pb, INK_STONE, r, alpha);
-          }
+          const recent = i >= marks.length - 4;
+          const center = place(m);
+          const phi = typeof m.phi === "number" ? m.phi : 0;
+          const halfSep = 1.95;
+          const dx = Math.cos(phi) * halfSep, dy = Math.sin(phi) * halfSep;
+          const pa = { x: center.x - dx, y: center.y - dy };
+          const pb = { x: center.x + dx, y: center.y + dy };
+
+          const auraR = recent ? 12.5 : 8.5;
+          const auraA = recent ? (m.guest ? 0.24 : 0.19) : 0.1;
+          const g = ctx.createRadialGradient(center.x, center.y, 0.4, center.x, center.y, auraR);
+          g.addColorStop(0, `rgba(${INK_GOLD_BRIGHT}, ${auraA})`);
+          g.addColorStop(0.5, `rgba(${INK_GOLD_WARM}, ${(auraA * 0.45).toFixed(4)})`);
+          g.addColorStop(1, "rgba(14, 47, 87, 0)");
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, auraR, 0, Math.PI * 2);
+          ctx.fill();
+
+          const r = recent ? 1.55 : 1.22;
+          const alpha = recent ? 0.62 : 0.34;
+          dot(pa, INK_SKY, r, alpha);
+          dot(pb, INK_STONE, r, alpha);
+          dot(center, INK_GOLD_BRIGHT, recent ? 1.38 : 1.05, recent ? 0.78 : 0.44);
         });
       }
 
@@ -1033,11 +1555,12 @@
         ctx.lineCap = "round";
         for (let i = 1; i < trail.length; i++) {
           const p = trail[i - 1], q = trail[i];
-          if (q.at - p.at > 120) continue;
-          const life = 1 - (now - q.at) / 2000;
+          if (!q.join || q.at - p.at > 120) continue;
+          if (Math.hypot(q.x - p.x, q.y - p.y) > 42) continue;
+          const life = 1 - (now - q.at) / 1800;
           if (life <= 0) continue;
-          ctx.strokeStyle = `rgba(${INK_GUEST}, ${0.38 * life * q.s})`;
-          ctx.lineWidth = 0.6 + 0.85 * life;
+          ctx.strokeStyle = `rgba(${INK_GOLD_BRIGHT}, ${(0.28 * life * q.s).toFixed(4)})`;
+          ctx.lineWidth = 0.55 + 0.75 * life;
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(q.x, q.y);
@@ -1045,30 +1568,54 @@
         }
       }
 
-      // A visitor click/tap proposes an open channel: two parallel breathing shore strokes separated by the fertile gap.
+      // A click or tap invites a warm shared foyer: a breathing golden seed cradled by two intimate crescents.
       function drawProposal(now) {
         if (!proposal) return;
         const p = place(proposal);
-        const k = Math.min(1, (now - proposal.at) / 500);
-        const breath = 0.5 + 0.5 * Math.sin((now - proposal.at) / 680);
-        const half = gapHalfWidth() * (0.78 + 0.12 * breath);
-        const len = 11 + 3 * breath;
+        const age = now - proposal.at;
+        const k = Math.min(1, age / 420);
+        const breath = 0.5 + 0.5 * Math.sin(age / 620);
+
+        const haloR = 17 + 5 * breath;
+        const g = ctx.createRadialGradient(p.x, p.y, 0.5, p.x, p.y, haloR);
+        g.addColorStop(0, `rgba(${INK_GOLD_BRIGHT}, ${(0.34 * k).toFixed(4)})`);
+        g.addColorStop(0.5, `rgba(${INK_GOLD_WARM}, ${(0.14 * k).toFixed(4)})`);
+        g.addColorStop(1, "rgba(14, 47, 87, 0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, haloR, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (age < 900) {
+          const rip = age / 900;
+          const eased = 1 - Math.pow(1 - rip, 3);
+          ctx.strokeStyle = `rgba(${INK_GOLD_BRIGHT}, ${(0.42 * (1 - rip)).toFixed(4)})`;
+          ctx.lineWidth = 0.85;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 4 + eased * 22, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        const rArc = 5.2 + 1.1 * breath;
+        const rot = age * 0.0009;
         ctx.lineCap = "round";
-        ctx.strokeStyle = `rgba(${INK_GUEST}, ${k * (0.34 + 0.28 * breath)})`;
         ctx.lineWidth = 1.05;
+        ctx.strokeStyle = `rgba(${INK_SKY}, ${(k * (0.48 + 0.24 * breath)).toFixed(4)})`;
         ctx.beginPath();
-        ctx.moveTo(p.x - half, p.y - len);
-        ctx.quadraticCurveTo(p.x - half * 0.78, p.y, p.x - half, p.y + len);
+        ctx.arc(p.x, p.y, rArc, rot + 0.45, rot + Math.PI - 0.45);
         ctx.stroke();
+
+        ctx.strokeStyle = `rgba(${INK_STONE}, ${(k * (0.48 + 0.24 * breath)).toFixed(4)})`;
         ctx.beginPath();
-        ctx.moveTo(p.x + half, p.y - len);
-        ctx.quadraticCurveTo(p.x + half * 0.78, p.y, p.x + half, p.y + len);
+        ctx.arc(p.x, p.y, rArc, rot + Math.PI + 0.45, rot + Math.PI * 2 - 0.45);
         ctx.stroke();
+
+        dot(p, INK_GOLD_BRIGHT, 1.75 + 0.3 * breath, 0.85 * k);
       }
 
       function drawResonance(now) {
         if (!resonance) return;
-        const k = (now - resonance.at) / 3400;
+        const k = (now - resonance.at) / 3800;
         if (k >= 1) {
           resonance = null;
           dryValid = false;
@@ -1076,14 +1623,32 @@
         }
         const line = exposures[exposures.length - 1];
         if (!line) return;
-        const envelope = k < 0.18 ? k / 0.18 : 1 - Math.pow((k - 0.18) / 0.82, 1.45);
-        paintInterstice(ctx, line, Math.max(0.18, envelope), now);
+        const envelope = k < 0.16 ? k / 0.16 : 1 - Math.pow((k - 0.16) / 0.84, 1.45);
+        paintNous(ctx, line, Math.max(0.24, envelope * 1.08), 1, now, false);
 
         const tipA = line.pens[0].points[line.pens[0].points.length - 1];
         const tipB = line.pens[1].points[line.pens[1].points.length - 1];
-        const swell = k < 0.16 ? 1 + 0.45 * Math.sin((k / 0.16) * Math.PI) : 1;
-        if (tipA) dot(tipA, INK_SKY, 2.7 * swell, 0.92 * (1 - 0.45 * k));
-        if (tipB) dot(tipB, INK_STONE, 2.7 * swell, 0.92 * (1 - 0.45 * k));
+        if (tipA && tipB) {
+          const mx = (tipA.x + tipB.x) * 0.5;
+          const my = (tipA.y + tipB.y) * 0.5;
+          if (k < 0.48) {
+            const rip = k / 0.48;
+            const eased = 1 - Math.pow(1 - rip, 3);
+            const bloomR = 8 + eased * 36;
+            const bg = ctx.createRadialGradient(mx, my, 0.5, mx, my, bloomR);
+            bg.addColorStop(0, `rgba(${INK_GOLD_BRIGHT}, ${(0.28 * (1 - rip)).toFixed(4)})`);
+            bg.addColorStop(0.55, `rgba(${INK_GOLD_WARM}, ${(0.11 * (1 - rip)).toFixed(4)})`);
+            bg.addColorStop(1, "rgba(14, 47, 87, 0)");
+            ctx.fillStyle = bg;
+            ctx.beginPath();
+            ctx.arc(mx, my, bloomR, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          const swell = k < 0.16 ? 1 + 0.32 * Math.sin((k / 0.16) * Math.PI) : 1;
+          dot(tipA, INK_SKY, 2.05 * swell, 0.9 * (1 - 0.42 * k));
+          dot(tipB, INK_STONE, 2.05 * swell, 0.9 * (1 - 0.42 * k));
+          dot({ x: mx, y: my }, INK_GOLD_BRIGHT, 1.75 * swell, 0.92 * (1 - 0.35 * k));
+        }
       }
 
       function render(now) {
@@ -1094,19 +1659,26 @@
 
         if (resonance && exposures.length) {
           const i = exposures.length - 1;
-          const base = 0.085 + 0.085 * i;
-          const k = Math.min(1, (now - resonance.at) / 3400);
-          exposures[i].pens.forEach(pen =>
-            stroke(ctx, pen.points, pen.rgb, base + (0.88 - base) * (1 - k * k))
-          );
+          const base = 0.09 + 0.085 * i;
+          const k = Math.min(1, (now - resonance.at) / 3800);
+          ctx.save();
+          ctx.globalAlpha = base + (0.9 - base) * (1 - k * k);
+          ctx.drawImage(settledPair.canvas, 0, 0, w, h);
+          ctx.restore();
         }
 
         if (current) {
-          if (current.t > 0.72) {
-            const live = smoothstep(0.72, 1.0, current.t) * 0.75;
-            paintInterstice(ctx, current, live, now);
+          const lastPt = current.pens[0].points[current.pens[0].points.length - 1];
+          const bLevel = lastPt ? lastPt.braid : 0;
+          if (bLevel > 0.24) {
+            const growth = smoothstep(0.24, 1.0, bLevel);
+            paintNous(ctx, current, 0.88 * growth, growth, now, false);
           }
-          ctx.drawImage(wet.canvas, 0, 0, w, h);
+          ctx.save();
+          ctx.globalAlpha = 0.9;
+          ctx.drawImage(wetA.canvas, 0, 0, w, h);
+          ctx.drawImage(wetB.canvas, 0, 0, w, h);
+          ctx.restore();
         }
 
         drawTrail(now);
@@ -1114,11 +1686,14 @@
         drawProposal(now);
 
         if (current) {
-          current.pens.forEach(pen => {
-            if (pen.points.length) {
-              dot(pen.points[pen.points.length - 1], pen.rgb, 2.8, 0.94);
-            }
-          });
+          const tipA = current.pens[0].points[current.pens[0].points.length - 1];
+          const tipB = current.pens[1].points[current.pens[1].points.length - 1];
+          if (tipA) dot(tipA, INK_SKY, 2.15, 0.94);
+          if (tipB) dot(tipB, INK_STONE, 2.15, 0.94);
+          if (tipA && tipB && tipA.braid > 0.72) {
+            const kSeed = smoothstep(0.72, 1.0, tipA.braid);
+            dot({ x: (tipA.x + tipB.x) * 0.5, y: (tipA.y + tipB.y) * 0.5 }, INK_GOLD_BRIGHT, 1.55 * kSeed, 0.86 * kSeed);
+          }
         }
         drawResonance(now);
       }
@@ -1138,48 +1713,58 @@
         const dt = Math.min(64, now - (last || now));
         last = now;
 
-        const follow = 1 - Math.exp(-dt / 140);
+        const follow = 1 - Math.exp(-dt / 130);
         presence.x += (pointer.x - presence.x) * follow;
         presence.y += (pointer.y - presence.y) * follow;
-        presence.strength += ((pointer.active ? 1 : 0) - presence.strength) * (1 - Math.exp(-dt / 450));
+        presence.strength += ((pointer.active ? 1 : 0) - presence.strength) * (1 - Math.exp(-dt / 420));
 
-        if (presence.strength > 0.02) {
+        for (let i = ghostPresences.length - 1; i >= 0; i--) {
+          ghostPresences[i].strength *= Math.exp(-dt / 380);
+          if (ghostPresences[i].strength < 0.003) ghostPresences.splice(i, 1);
+        }
+
+        if (pointer.active && presence.strength > 0.02) {
           const tip = trail[trail.length - 1];
-          if (!tip || Math.hypot(presence.x - tip.x, presence.y - tip.y) > 1.5) {
-            trail.push({ x: presence.x, y: presence.y, at: now, s: presence.strength });
+          const dist = tip ? Math.hypot(presence.x - tip.x, presence.y - tip.y) : Infinity;
+          if (!tip || dist > 1.6) {
+            trail.push({
+              x: presence.x,
+              y: presence.y,
+              at: now,
+              s: presence.strength,
+              join: !trailNeedsBreak && dist <= 40
+            });
+            trailNeedsBreak = false;
           }
         }
-        while (trail.length && now - trail[0].at > 2000) trail.shift();
-
-        if (current && current.goal) {
-          const glide = 1 - Math.exp(-dt / 500);
-          current.locus.u += (current.goal.u - current.locus.u) * glide;
-          current.locus.v += (current.goal.v - current.locus.v) * glide;
-        }
+        while (trail.length && now - trail[0].at > 1800) trail.shift();
 
         if (!current) {
           pause -= dt;
           if (pause <= 0) {
             current = newLine();
-            rebuild(current);
+            initLinePoints(current);
+            wetA.clearRect(0, 0, w, h);
+            wetB.clearRect(0, 0, w, h);
           }
         } else {
-          advance(current, Math.min(1, current.t + dt / current.duration));
-          if (current.t >= 1) {
-            if (current.goal) current.locus = { ...current.goal };
+          stepLineBy(current, dt);
+          if (current.tau >= 1) {
+            paintSettledPairBuffer(current);
             resonance = { at: now, guest: current.guest };
             keepMark(current);
             if (proposal && proposal === current.proposal) proposal = null;
             exposures.push(current);
             if (exposures.length > 3) exposures.shift();
             current = null;
-            wet.clearRect(0, 0, w, h);
+            wetA.clearRect(0, 0, w, h);
+            wetB.clearRect(0, 0, w, h);
             dryValid = false;
-            pause = proposal ? 1400 : 3600;
+            pause = proposal ? 280 : 3400;
           }
         }
 
-        const moving = current || resonance || proposal || trail.length || !dryValid;
+        const moving = current || resonance || proposal || trail.length || ghostPresences.length || !dryValid;
         if (moving || !settled) render(now);
         settled = !moving;
         requestAnimationFrame(frame);
@@ -1192,28 +1777,55 @@
         requestAnimationFrame(frame);
       }
 
-      function move(e) {
-        const rect = header.getBoundingClientRect();
-        pointer.x = e.clientX - rect.left;
-        pointer.y = e.clientY - rect.top;
-        const inside = pointer.y >= 0 && pointer.y <= rect.height;
-        if (inside && presence.strength < 0.02) {
-          presence.x = pointer.x;
-          presence.y = pointer.y;
+      function handoffPresence(x, y) {
+        if (presence.strength > 0.005) {
+          ghostPresences.push({ x: presence.x, y: presence.y, strength: presence.strength });
         }
-        pointer.active = inside;
+        presence.x = x;
+        presence.y = y;
+        presence.strength = 0;
+        trailNeedsBreak = true;
+      }
+
+      function move(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const inside = x >= 0 && x <= rect.width && y >= 0 && y <= rect.height;
+        if (!inside) {
+          pointer.active = false;
+          trailNeedsBreak = true;
+          return;
+        }
+        const jumped = !pointer.active || e.pointerType === "touch" || Math.hypot(x - pointer.x, y - pointer.y) > 56;
+        if (jumped) {
+          handoffPresence(x, y);
+        }
+        pointer.x = x;
+        pointer.y = y;
+        pointer.active = e.pointerType !== "touch" || e.type === "pointerdown";
+        wake();
       }
 
       function propose(e) {
         if (e.target.closest("a, button")) return;
-        const rect = header.getBoundingClientRect();
-        const x = e.clientX - rect.left, y = e.clientY - rect.top;
-        if (y < 0 || y > rect.height || b.x === a.x) return;
-        const u = Math.min(0.8, Math.max(0.2, (x - a.x) / (b.x - a.x)));
-        const v = Math.min(w < 721 ? 0.14 : 0.15, Math.max(w < 721 ? 0.0 : -0.24, (y - a.y) / h));
+        const rect = canvas.getBoundingClientRect();
+        const rawX = e.clientX - rect.left;
+        const rawY = e.clientY - rect.top;
+        if (rawX < 0 || rawX > rect.width || rawY < 0 || rawY > rect.height || b.x === a.x) return;
+        const padX = Math.max(48, w * 0.08);
+        const clampedX = Math.min(w - padX, Math.max(padX, rawX));
+        const clampedY = Math.min(maxFoyerY, Math.max(64, rawY));
+        const u = (clampedX - a.x) / (b.x - a.x);
+        const v = (clampedY - a.y) / (h || 1);
         proposal = { u, v, at: performance.now() };
-        if (current && current.t < 0.58) accept(current);
-        else if (!current) pause = Math.min(pause, 900);
+        if (current && current.tau < 0.94) {
+          applyRedirect(current, proposal, proposal, true);
+        } else if (!current) {
+          pause = Math.min(pause, 180);
+        }
+        settled = false;
+        wake();
       }
 
       layout();
@@ -1223,20 +1835,26 @@
         resizeTimer = setTimeout(() => {
           if (!layout()) return;
           exposures.forEach(rebuild);
-          if (current) rebuild(current);
+          if (current) {
+            rebuild(current);
+          }
+          if (resonance && exposures.length) {
+            paintSettledPairBuffer(exposures[exposures.length - 1]);
+          }
           settled = false;
+          wake();
         }, 120);
       });
 
       if (still) {
         const line = newLine();
-        rebuild(line);
-        advance(line, 1);
+        initLinePoints(line);
+        stepLineBy(line, line.duration);
         keepMark(line);
         const renderStill = () => {
           ctx.clearRect(0, 0, w, h);
-          paintInterstice(ctx, line, 0.65, 0);
-          line.pens.forEach(pen => stroke(ctx, pen.points, pen.rgb, 0.8));
+          paintNous(ctx, line, 0.78, 1, 0, true);
+          line.pens.forEach(pen => compositePen(ctx, pen.points, pen.rgb, 0.86));
           drawMarks();
         };
         renderStill();
@@ -1249,14 +1867,26 @@
 
       window.addEventListener("pointermove", move, { passive: true });
       window.addEventListener("pointerdown", move, { passive: true });
-      header.addEventListener("pointerleave", () => { pointer.active = false; });
-      header.addEventListener("pointercancel", () => { pointer.active = false; });
+      window.addEventListener("pointerup", e => {
+        if (e.pointerType === "touch") {
+          pointer.active = false;
+          trailNeedsBreak = true;
+        }
+      }, { passive: true });
+      header.addEventListener("pointerleave", () => {
+        pointer.active = false;
+        trailNeedsBreak = true;
+      });
+      header.addEventListener("pointercancel", () => {
+        pointer.active = false;
+        trailNeedsBreak = true;
+      });
       header.addEventListener("click", propose);
       document.addEventListener("visibilitychange", () => {
         tabVisible = !document.hidden;
         wake();
       });
-      pause = 500;
+      pause = 420;
       if ("IntersectionObserver" in window) {
         new IntersectionObserver(([entry]) => {
           inView = entry.isIntersecting;
