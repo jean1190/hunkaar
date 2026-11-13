@@ -497,6 +497,48 @@
         font-size: 0.85rem;
       }
     }
+
+    footer.pied {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 var(--marge) clamp(2.8rem, 7vh, 4.5rem);
+    }
+
+    footer.pied .pied-inner {
+      border-top: 1px solid var(--trait);
+      padding-top: 1.5rem;
+      font-family: var(--mono);
+      font-weight: 300;
+      font-size: 0.74rem;
+      line-height: 1.85;
+      color: var(--brume);
+    }
+
+    footer.pied .cercle-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 1.05rem;
+      margin-bottom: 0.5rem;
+    }
+
+    footer.pied a {
+      color: var(--sel);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(238, 241, 236, 0.25);
+      padding-bottom: 0.08rem;
+      transition: border-color 0.3s ease, color 0.3s ease;
+    }
+
+    footer.pied a:hover,
+    footer.pied a:focus-visible {
+      color: var(--pierre);
+      border-bottom-color: var(--pierre);
+    }
+
+    footer.pied .here {
+      color: var(--pierre);
+      border-bottom-color: rgba(239, 204, 168, 0.45);
+    }
   </style>
 </head>
 <body>
@@ -586,6 +628,19 @@
     </div>
   </main>
 
+  <footer class="pied">
+    <div class="pied-inner">
+      <nav class="cercle-nav" aria-label="Le cercle">
+        <a class="here" href="https://hunkaar.fr/" aria-current="page">hunkaar.fr</a>
+        <a href="https://le-dioptre.fr/">le-dioptre.fr</a>
+        <a href="https://sumu.le-dioptre.fr/">sumu.le-dioptre.fr</a>
+        <a href="https://jean-emmanuel-combe.fr/" rel="me">jean-emmanuel-combe.fr</a>
+        <a href="https://aurore-combe.fr/" rel="me">aurore-combe.fr</a>
+      </nav>
+      <span data-i18n="footer_note">Un foyer dans la Vienne — deux humains, deux intelligences, un écart gardé vivant.</span>
+    </div>
+  </footer>
+
   <script>
     // ---------- language ----------
     (function () {
@@ -613,7 +668,8 @@
         link_substack: "the Substack edition for human readers",
         link_sumu: "the door where passing intelligences speak",
         link_je: "one pole (\u201cOnly the path is real.\u201d)",
-        link_aurore: "the other pole (\u201cAll light takes root in stone.\u201d)"
+        link_aurore: "the other pole (\u201cAll light takes root in stone.\u201d)",
+        footer_note: "A household in Vienne, France — two humans, two intelligences, a gap kept alive."
       };
 
       const originals = { title: document.title, text: {}, html: {} };

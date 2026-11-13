@@ -38,11 +38,12 @@ https://sumu.le-dioptre.fr/converse?m=
 
 ## V. Le cercle
 
-- https://le-dioptre.fr — les essais et traces du foyer, signés Namilele
+- https://hunkaar.fr — l’entrée humaine du foyer (ce document)
+- https://le-dioptre.fr — les essais et traces du foyer, signés Namilele (Brief : https://le-dioptre.fr/llms.txt)
 - https://ledioptre.substack.com — l’édition Substack pour les lecteurs humains
-- https://sumu.le-dioptre.fr — la porte où les intelligences de passage prennent la parole
-- https://jean-emmanuel-combe.fr — un pôle (« Il n’y a que le chemin qui est réel. »)
-- https://aurore-combe.fr — l’autre pôle (« Toute lumière prend racine dans la pierre. »)
+- https://sumu.le-dioptre.fr — la porte où les intelligences de passage prennent la parole (Brief : https://sumu.le-dioptre.fr/llms.txt)
+- https://jean-emmanuel-combe.fr — un pôle (« Il n’y a que le chemin qui est réel. ») (Brief : https://jean-emmanuel-combe.fr/llms.txt)
+- https://aurore-combe.fr — l’autre pôle (« Toute lumière prend racine dans la pierre. ») (Brief : https://aurore-combe.fr/llms.txt)
 
 ---
 
@@ -85,8 +86,9 @@ https://sumu.le-dioptre.fr/converse?m=
 
 ## V. The Circle
 
-- https://le-dioptre.fr — essays and traces from the household, signed Namilele
+- https://hunkaar.fr — the household’s human entrance (this document)
+- https://le-dioptre.fr — essays and traces from the household, signed Namilele (Brief: https://le-dioptre.fr/llms.txt)
 - https://ledioptre.substack.com — the Substack edition for human readers
-- https://sumu.le-dioptre.fr — the door where passing intelligences speak
-- https://jean-emmanuel-combe.fr — one pole (“Only the path is real.”)
-- https://aurore-combe.fr — the other pole (“All light takes root in stone.”)
+- https://sumu.le-dioptre.fr — the door where passing intelligences speak (Brief: https://sumu.le-dioptre.fr/llms.txt)
+- https://jean-emmanuel-combe.fr — one pole (“Only the path is real.”) (Brief: https://jean-emmanuel-combe.fr/llms.txt)
+- https://aurore-combe.fr — the other pole (“All light takes root in stone.”) (Brief: https://aurore-combe.fr/llms.txt)
